@@ -90,7 +90,7 @@ LocalVideo.prototype.setDisplayName = function(displayName, key) {
 
 
         nameSpan.id = 'localDisplayName';
-        this.container.appendChild(editButton);
+        //this.container.appendChild(editButton);
         //translates popover of edit button
         APP.translation.translateElement($("a.displayname"));
 
@@ -112,7 +112,7 @@ LocalVideo.prototype.setDisplayName = function(displayName, key) {
             JSON.stringify({name: "Jane Pink"}));
         editableText.setAttribute("placeholder", defaultNickname);
 
-        this.container.appendChild(editableText);
+        //this.container.appendChild(editableText);
 
         var self = this;
         $('#localVideoContainer .displayname')
