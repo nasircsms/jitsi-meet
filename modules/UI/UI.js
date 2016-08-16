@@ -1,4 +1,4 @@
-/* global APP, $, config, interfaceConfig, toastr */
+/* global APP, JitsiMeetJS, $, config, interfaceConfig, toastr */
 /* jshint -W101 */
 var UI = {};
 
@@ -15,12 +15,14 @@ import CQEvents from '../../service/connectionquality/CQEvents';
 import EtherpadManager from './etherpad/Etherpad';
 import SharedVideoManager from './shared_video/SharedVideo';
 import Recording from "./recording/Recording";
+import GumPermissionsOverlay from './gum_overlay/UserMediaPermissionsGuidanceOverlay';
 
 import VideoLayout from "./videolayout/VideoLayout";
 import FilmStrip from "./videolayout/FilmStrip";
 import SettingsMenu from "./side_pannels/settings/SettingsMenu";
 import Settings from "./../settings/Settings";
 import { reload } from '../util/helpers';
+import RingOverlay from "./ring_overlay/RingOverlay";
 
 var EventEmitter = require("events");
 UI.messageHandler = require("./util/MessageHandler");
@@ -37,6 +39,34 @@ let etherpadManager;
 let sharedVideoManager;
 
 let followMeHandler;
+
+let deviceErrorDialog;
+
+const TrackErrors = JitsiMeetJS.errors.track;
+
+const JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP = {
+    microphone: {},
+    camera: {}
+};
+
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[TrackErrors.UNSUPPORTED_RESOLUTION]
+    = "dialog.cameraUnsupportedResolutionError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[TrackErrors.GENERAL]
+    = "dialog.cameraUnknownError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[TrackErrors.PERMISSION_DENIED]
+    = "dialog.cameraPermissionDeniedError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[TrackErrors.NOT_FOUND]
+    = "dialog.cameraNotFoundError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[TrackErrors.CONSTRAINT_FAILED]
+    = "dialog.cameraConstraintFailedError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.microphone[TrackErrors.GENERAL]
+    = "dialog.micUnknownError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.microphone[TrackErrors.PERMISSION_DENIED]
+    = "dialog.micPermissionDeniedError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.microphone[TrackErrors.NOT_FOUND]
+    = "dialog.micNotFoundError";
+JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.microphone[TrackErrors.CONSTRAINT_FAILED]
+    = "dialog.micConstraintFailedError";
 
 /**
  * Prompt user for nickname.
@@ -228,11 +258,38 @@ UI.changeDisplayName = function (id, displayName) {
 };
 
 /**
- * Intitialize conference UI.
+ * Sets the "raised hand" status for a participant.
+ */
+UI.setRaisedHandStatus = (participant, raisedHandStatus) => {
+    VideoLayout.setRaisedHandStatus(participant.getId(), raisedHandStatus);
+    if (raisedHandStatus) {
+        messageHandler.notify(participant.getDisplayName(), 'notify.somebody',
+                          'connected', 'notify.raisedHand');
+    }
+};
+
+/**
+ * Sets the local "raised hand" status.
+ */
+UI.setLocalRaisedHandStatus = (raisedHandStatus) => {
+    VideoLayout.setRaisedHandStatus(APP.conference.getMyUserId(), raisedHandStatus);
+};
+
+/**
+ * Initialize conference UI.
  */
 UI.initConference = function () {
-    let id = APP.conference.localId;
-    Toolbar.updateRoomUrl(window.location.href);
+    let id = APP.conference.getMyUserId();
+
+    // Do not include query parameters in the invite URL
+    // "https:" + "//" + "example.com:8888" + "/SomeConference1245"
+    var inviteURL = window.location.protocol + "//" +
+        window.location.host + window.location.pathname;
+    Toolbar.updateRoomUrl(inviteURL);
+    // Clean up the URL displayed by the browser
+    if (window.history && typeof window.history.replaceState === 'function') {
+        window.history.replaceState({}, document.title, inviteURL);
+    }
 
     // Add myself to the contact list.
     ContactList.addContact(id);
@@ -242,7 +299,9 @@ UI.initConference = function () {
     UI.updateLocalRole(false);
 
     // Once we've joined the muc show the toolbar
-    ToolbarToggler.showToolbar();
+    if (!RingOverlay.isDisplayed()) {
+        ToolbarToggler.showToolbar();
+    }
 
     let displayName = config.displayJids ? id : Settings.getDisplayName();
 
@@ -251,7 +310,7 @@ UI.initConference = function () {
     }
 
     // Make sure we configure our avatar id, before creating avatar for us
-    UI.setUserAvatar(id, Settings.getEmail());
+    UI.setUserEmail(id, Settings.getEmail());
 
     Toolbar.checkAutoEnableDesktopSharing();
 
@@ -362,6 +421,7 @@ UI.start = function () {
 
     registerListeners();
 
+    ToolbarToggler.init();
     BottomToolbar.init();
     FilmStrip.init(eventEmitter);
 
@@ -404,7 +464,7 @@ UI.start = function () {
         $("#downloadlog").css("display", "none");
         BottomToolbar.hide();
         FilmStrip.setupFilmStripOnly();
-        messageHandler.disableNotifications();
+        messageHandler.enableNotifications(false);
         $('body').popover("disable");
         JitsiPopover.enabled = false;
     }
@@ -442,6 +502,10 @@ UI.start = function () {
         };
 
         SettingsMenu.init(eventEmitter);
+    }
+
+    if(APP.tokenData.callee) {
+        UI.showRingOverLay();
     }
 
     // Return true to indicate that the UI has been fully started and
@@ -525,6 +589,7 @@ UI.getSharedDocumentManager = function () {
  * @param {string} displayName user nickname
  */
 UI.addUser = function (id, displayName) {
+    UI.hideRingOverLay();
     ContactList.addContact(id);
 
     messageHandler.notify(
@@ -539,7 +604,7 @@ UI.addUser = function (id, displayName) {
     VideoLayout.addParticipantContainer(id);
 
     // Configure avatar
-    UI.setUserAvatar(id);
+    UI.setUserEmail(id);
 
     // set initial display name
     if(displayName)
@@ -774,21 +839,41 @@ UI.dockToolbar = function (isDock) {
 };
 
 /**
- * Update user avatar.
+ * Updates the avatar for participant.
  * @param {string} id user id
- * @param {stirng} email user email
+ * @param {stirng} avatarUrl the URL for the avatar
  */
-UI.setUserAvatar = function (id, email) {
-    // update avatar
-    Avatar.setUserAvatar(id, email);
-
-    var avatarUrl = Avatar.getAvatarUrl(id);
-
+function changeAvatar(id, avatarUrl) {
     VideoLayout.changeUserAvatar(id, avatarUrl);
     ContactList.changeUserAvatar(id, avatarUrl);
     if (APP.conference.isLocalId(id)) {
         SettingsMenu.changeAvatar(avatarUrl);
     }
+}
+
+/**
+ * Update user email.
+ * @param {string} id user id
+ * @param {stirng} email user email
+ */
+UI.setUserEmail = function (id, email) {
+    // update avatar
+    Avatar.setUserEmail(id, email);
+
+    changeAvatar(id, Avatar.getAvatarUrl(id));
+};
+
+
+/**
+ * Update user avatar URL.
+ * @param {string} id user id
+ * @param {stirng} url user avatar url
+ */
+UI.setUserAvatarUrl = function (id, url) {
+    // update avatar
+    Avatar.setUserAvatarUrl(id, url);
+
+    changeAvatar(id, Avatar.getAvatarUrl(id));
 };
 
 /**
@@ -1079,6 +1164,28 @@ UI.onAvailableDevicesChanged = function (devices) {
 };
 
 /**
+ * Sets microphone's <select> element to select microphone ID from settings.
+ */
+UI.setSelectedMicFromSettings = function () {
+    SettingsMenu.setSelectedMicFromSettings();
+};
+
+/**
+ * Sets camera's <select> element to select camera ID from settings.
+ */
+UI.setSelectedCameraFromSettings = function () {
+    SettingsMenu.setSelectedCameraFromSettings();
+};
+
+/**
+ * Sets audio outputs's <select> element to select audio output ID from
+ * settings.
+ */
+UI.setSelectedAudioOutputFromSettings = function () {
+    SettingsMenu.setSelectedAudioOutputFromSettings();
+};
+
+/**
  * Returns the id of the current video shown on large.
  * Currently used by tests (torture).
  */
@@ -1104,6 +1211,168 @@ UI.showExtensionRequiredDialog = function (url) {
         null,
         APP.translation.generateTranslationHTML(
             "dialog.firefoxExtensionPrompt", {url: url}));
+};
+
+/**
+ * Shows "Please go to chrome webstore to install the desktop sharing extension"
+ * 2 button dialog with buttons - cancel and go to web store.
+ * @param url {string} the url of the extension.
+ */
+UI.showExtensionExternalInstallationDialog = function (url) {
+    messageHandler.openTwoButtonDialog(
+        "dialog.externalInstallationTitle",
+        null,
+        "dialog.externalInstallationMsg",
+        null,
+        true,
+        "dialog.goToStore",
+         function(e,v,m,f){
+            if (v) {
+                e.preventDefault();
+                eventEmitter.emit(UIEvents.OPEN_EXTENSION_STORE, url);
+            }
+        },
+        function () {},
+        function () {
+            eventEmitter.emit(UIEvents.EXTERNAL_INSTALLATION_CANCELED);
+        }
+    );
+};
+
+
+/**
+ * Shows dialog with combined information about camera and microphone errors.
+ * @param {JitsiTrackError} micError
+ * @param {JitsiTrackError} cameraError
+ */
+UI.showDeviceErrorDialog = function (micError, cameraError) {
+    let localStoragePropName = "doNotShowErrorAgain";
+    let isMicJitsiTrackErrorAndHasName = micError && micError.name &&
+        micError instanceof JitsiMeetJS.errorTypes.JitsiTrackError;
+    let isCameraJitsiTrackErrorAndHasName = cameraError && cameraError.name &&
+        cameraError instanceof JitsiMeetJS.errorTypes.JitsiTrackError;
+    let showDoNotShowWarning = false;
+
+    if (micError && cameraError && isMicJitsiTrackErrorAndHasName &&
+        isCameraJitsiTrackErrorAndHasName) {
+        showDoNotShowWarning =  true;
+    } else if (micError && isMicJitsiTrackErrorAndHasName && !cameraError) {
+        showDoNotShowWarning =  true;
+    } else if (cameraError && isCameraJitsiTrackErrorAndHasName && !micError) {
+        showDoNotShowWarning =  true;
+    }
+
+    if (micError) {
+        localStoragePropName += "-mic-" + micError.name;
+    }
+
+    if (cameraError) {
+        localStoragePropName += "-camera-" + cameraError.name;
+    }
+
+    if (showDoNotShowWarning) {
+        if (window.localStorage[localStoragePropName] === "true") {
+            return;
+        }
+    }
+
+    let title = getTitleKey();
+    let titleMsg = `<span data-i18n="${title}"></span>`;
+    let cameraJitsiTrackErrorMsg = cameraError
+        ? JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[cameraError.name]
+        : undefined;
+    let micJitsiTrackErrorMsg = micError
+        ? JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.microphone[micError.name]
+        : undefined;
+    let cameraErrorMsg = cameraError
+        ? cameraJitsiTrackErrorMsg ||
+            JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.camera[TrackErrors.GENERAL]
+        : "";
+    let micErrorMsg = micError
+        ? micJitsiTrackErrorMsg ||
+            JITSI_TRACK_ERROR_TO_MESSAGE_KEY_MAP.microphone[TrackErrors.GENERAL]
+        : "";
+    let additionalCameraErrorMsg = !cameraJitsiTrackErrorMsg && cameraError &&
+        cameraError.message
+            ? `<div>${cameraError.message}</div>`
+            : ``;
+    let additionalMicErrorMsg = !micJitsiTrackErrorMsg && micError &&
+        micError.message
+            ? `<div>${micError.message}</div>`
+            : ``;
+    let doNotShowWarningAgainSection = showDoNotShowWarning
+        ? `<label>
+            <input type='checkbox' id='doNotShowWarningAgain'>
+            <span data-i18n='dialog.doNotShowWarningAgain'></span>
+           </label>`
+        : ``;
+    let message = '';
+
+    if (micError) {
+        message = `
+            ${message}
+            <h3 data-i18n='dialog.micErrorPresent'></h3>
+            <h4 data-i18n='${micErrorMsg}'></h4>
+            ${additionalMicErrorMsg}`;
+    }
+
+    if (cameraError) {
+        message = `
+            ${message}
+            <h3 data-i18n='dialog.cameraErrorPresent'></h3>
+            <h4 data-i18n='${cameraErrorMsg}'></h4>
+            ${additionalCameraErrorMsg}`;
+    }
+
+    message = `${message}${doNotShowWarningAgainSection}`;
+
+    // To make sure we don't have multiple error dialogs open at the same time,
+    // we will just close the previous one if we are going to show a new one.
+    deviceErrorDialog && deviceErrorDialog.close();
+
+    deviceErrorDialog = messageHandler.openDialog(
+        titleMsg,
+        message,
+        false,
+        {Ok: true},
+        function () {
+            let form  = $.prompt.getPrompt();
+
+            if (form) {
+                let input = form.find("#doNotShowWarningAgain");
+
+                if (input.length) {
+                    window.localStorage[localStoragePropName] =
+                        input.prop("checked");
+                }
+            }
+        },
+        null,
+        function () {
+            // Reset dialog reference to null to avoid memory leaks when
+            // user closed the dialog manually.
+            deviceErrorDialog = null;
+        }
+    );
+
+    APP.translation.translateElement($(".jqibox"));
+
+    function getTitleKey() {
+        let title = "dialog.error";
+
+        if (micError && micError.name === TrackErrors.PERMISSION_DENIED) {
+            if (cameraError && cameraError.name === TrackErrors.PERMISSION_DENIED) {
+                title = "dialog.permissionDenied";
+            } else if (!cameraError) {
+                title = "dialog.permissionDenied";
+            }
+        } else if (cameraError &&
+            cameraError.name === TrackErrors.PERMISSION_DENIED) {
+            title = "dialog.permissionDenied";
+        }
+
+        return title;
+    }
 };
 
 UI.updateDevicesAvailability = function (id, devices) {
@@ -1140,6 +1409,81 @@ UI.onSharedVideoUpdate = function (id, url, attributes) {
 UI.onSharedVideoStop = function (id, attributes) {
     if (sharedVideoManager)
         sharedVideoManager.onSharedVideoStop(id, attributes);
+};
+
+/**
+ * Disables camera toolbar button.
+ */
+UI.disableCameraButton = function () {
+    Toolbar.markVideoIconAsDisabled(true);
+};
+
+/**
+ * Enables camera toolbar button.
+ */
+UI.enableCameraButton = function () {
+    Toolbar.markVideoIconAsDisabled(false);
+};
+
+/**
+ * Disables microphone toolbar button.
+ */
+UI.disableMicrophoneButton = function () {
+    Toolbar.markAudioIconAsDisabled(true);
+};
+
+/**
+ * Enables microphone toolbar button.
+ */
+UI.enableMicrophoneButton = function () {
+    Toolbar.markAudioIconAsDisabled(false);
+};
+
+let bottomToolbarEnabled = null;
+
+UI.showRingOverLay = function () {
+    RingOverlay.show(APP.tokenData.callee);
+    FilmStrip.toggleFilmStrip(false);
+};
+
+UI.hideRingOverLay = function () {
+    if (!RingOverlay.hide())
+        return;
+    FilmStrip.toggleFilmStrip(true);
+};
+
+/**
+ * Shows browser-specific overlay with guidance how to proceed with gUM prompt.
+ * @param {string} browser - name of browser for which to show the guidance
+ *      overlay.
+ */
+UI.showUserMediaPermissionsGuidanceOverlay = function (browser) {
+    GumPermissionsOverlay.show(browser);
+};
+
+/**
+ * Hides browser-specific overlay with guidance how to proceed with gUM prompt.
+ */
+UI.hideUserMediaPermissionsGuidanceOverlay = function () {
+    GumPermissionsOverlay.hide();
+};
+
+/**
+ * Shows or hides the keyboard shortcuts panel, depending on the current state.'
+ */
+UI.toggleKeyboardShortcutsPanel = function() {
+    $('#keyboard-shortcuts').toggle();
+};
+
+/**
+ * Shows or hides the keyboard shortcuts panel.'
+ */
+UI.showKeyboardShortcutsPanel = function(show) {
+    if (show) {
+        $('#keyboard-shortcuts').show();
+    } else {
+        $('#keyboard-shortcuts').hide();
+    }
 };
 
 module.exports = UI;

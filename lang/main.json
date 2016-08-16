@@ -8,8 +8,33 @@
     "participant": "Participant",
     "me": "me",
     "speaker": "Speaker",
+    "raisedHand": "Would like to speak",
     "defaultNickname": "ex. Jane Pink",
     "defaultLink": "e.g. __url__",
+    "calling": "Calling __name__ ...",
+    "userMedia": {
+      "react-nativeGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>Allow</i></b> button",
+      "chromeGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>Allow</i></b> button",
+      "androidGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>Allow</i></b> button",
+      "firefoxGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>Share Selected Device</i></b> button",
+      "operaGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>Allow</i></b> button",
+      "iexplorerGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>OK</i></b> button",
+      "safariGrantPermissions": "Please grant permissions to use your camera and microphone by pressing <b><i>OK</i></b> button",
+      "nwjsGrantPermissions": "Please grant permissions to use your camera and microphone"
+    },
+    "keyboardShortcuts": {
+        "keyboardShortcuts": "Keyboard shortcuts:",
+        "raiseHand": "Raise your hand.",
+        "pushToTalk": "Push to talk.",
+        "toggleScreensharing": "Switch between camera and screensharing.",
+        "toggleFilmstrip": "Show or hide the filmstrip.",
+        "toggleShortcuts": "Show or hide this help menu.",
+        "focusLocal": "Focus on the local video.",
+        "focusRemote": "Focus on one of the remote videos.",
+        "toggleChat": "Open or close the chat panel.",
+        "mute": "Mute or unmute the microphone.",
+        "videoMute": "Stop or start the local video."
+    },
     "welcomepage":{
         "go": "GO",
         "roomname": "Enter room name",
@@ -66,7 +91,9 @@
         "dialpad": "Show dialpad",
         "sharedVideoMutedPopup": "Your shared video has been muted so<br/>that you can talk to the other participants.",
         "micMutedPopup": "Your microphone has been muted so that you<br/>would fully enjoy your shared video.",
-        "unableToUnmutePopup": "You cannot un-mute while the shared video is on."
+        "unableToUnmutePopup": "You cannot un-mute while the shared video is on.",
+        "cameraDisabled": "Camera is not available",
+        "micDisabled": "Microphone is not available"
     },
     "bottomtoolbar": {
         "chat": "Open / close chat",
@@ -90,7 +117,10 @@
         "selectCamera": "Select camera",
         "selectMic": "Select microphone",
         "selectAudioOutput": "Select audio output",
-        "followMe": "Enable follow me"
+        "followMe": "Enable follow me",
+        "noDevice": "None",
+        "noPermission": "Permission to use device is not granted",
+        "avatarUrl": "Avatar URL"
     },
     "videothumbnail":
     {
@@ -135,7 +165,8 @@
         "grantedTo": "Moderator rights granted to __to__!",
         "grantedToUnknown": "Moderator rights granted to $t(somebody)!",
         "muted": "You have started the conversation muted.",
-        "mutedTitle": "You're muted!"
+        "mutedTitle": "You're muted!",
+        "raisedHand": "Would like to speak."
     },
     "dialog": {
         "kickMessage": "Ouch! You have been kicked out of the meet!",
@@ -218,7 +249,24 @@
         "stopStreamingWarning": "Are you sure you would like to stop the live streaming?",
         "stopRecordingWarning": "Are you sure you would like to stop the recording?",
         "stopLiveStreaming": "Stop live streaming",
-        "stopRecording": "Stop recording"
+        "stopRecording": "Stop recording",
+        "doNotShowWarningAgain": "Don't show this warning again",
+        "permissionDenied": "Permission Denied",
+        "screenSharingPermissionDeniedError": "You have not granted permission to share your screen.",
+        "micErrorPresent": "There was an error connecting to your microphone.",
+        "cameraErrorPresent": "There was an error connecting to your camera.",
+        "cameraUnsupportedResolutionError": "Your camera does not support required video resolution.",
+        "cameraUnknownError": "Cannot use camera for a unknown reason.",
+        "cameraPermissionDeniedError": "You have not granted permission to use your camera. You can still join the conference but others won't see you. Use the camera button in the address bar to fix this.",
+        "cameraNotFoundError": "Requested camera was not found.",
+        "cameraConstraintFailedError": "Yor camera does not satisfy some of required constraints.",
+        "micUnknownError": "Cannot use microphone for a unknown reason.",
+        "micPermissionDeniedError": "You have not granted permission to use your microphone. You can still join the conference but others won't hear you. Use the camera button in the address bar to fix this.",
+        "micNotFoundError": "Requested microphone was not found.",
+        "micConstraintFailedError": "Yor microphone does not satisfy some of required constraints.",
+        "goToStore": "Go to the webstore",
+        "externalInstallationTitle": "Extension required",
+        "externalInstallationMsg": "You need to install our desktop sharing extension."
     },
     "email":
     {
@@ -271,7 +319,8 @@
         "off": "Recording stopped",
         "failedToStart": "Recording failed to start",
         "buttonTooltip": "Start / stop recording",
-        "error": "Recording failed. Please try again."
+        "error": "Recording failed. Please try again.",
+        "unavailable": "The recording service is currently unavailable. Please try again later."
     },
     "liveStreaming":
     {
@@ -282,6 +331,7 @@
         "failedToStart": "Live streaming failed to start",
         "buttonTooltip": "Start / stop live stream",
         "streamIdRequired": "Please fill in the stream id in order to launch the live streaming.",
-        "error": "Live streaming failed. Please try again"
+        "error": "Live streaming failed. Please try again.",
+        "busy": "All recorders are currently busy. Please try again later."
     }
 }

@@ -1,47 +1,74 @@
-/* global APP, $ */
+/* global APP, $, JitsiMeetJS */
 //maps keycode to character, id of popover for given function and function
 var shortcuts = {};
 function initShortcutHandlers() {
     shortcuts = {
-        67: {
+        "ESCAPE": {
+            character: "Esc",
+            function: function() {
+                APP.UI.showKeyboardShortcutsPanel(false);
+            }
+        },
+        "C": {
             character: "C",
             id: "toggleChatPopover",
             function: function() {
+                JitsiMeetJS.analytics.sendEvent('shortcut.chat.toggled');
                 APP.UI.toggleChat();
             }
         },
-        68: {
+        "D": {
             character: "D",
             id: "toggleDesktopSharingPopover",
             function: function () {
+                JitsiMeetJS.analytics.sendEvent('shortcut.screen.toggled');
                 APP.conference.toggleScreenSharing();
             }
         },
-        70: {
+        "F": {
             character: "F",
             id: "filmstripPopover",
             function: function() {
+                JitsiMeetJS.analytics.sendEvent('shortcut.film.toggled');
                 APP.UI.toggleFilmStrip();
             }
         },
-        77: {
+        "M": {
             character: "M",
             id: "mutePopover",
             function: function() {
+                JitsiMeetJS.analytics.sendEvent('shortcut.audiomute.toggled');
                 APP.conference.toggleAudioMuted();
             }
         },
-        84: {
+        "R": {
+            character: "R",
+            function: function() {
+                JitsiMeetJS.analytics.sendEvent('shortcut.raisedhand.toggled');
+                APP.conference.maybeToggleRaisedHand();
+            }
+
+        },
+        "T": {
             character: "T",
             function: function() {
+                JitsiMeetJS.analytics.sendEvent('shortcut.talk.clicked');
                 APP.conference.muteAudio(true);
             }
         },
-        86: {
+        "V": {
             character: "V",
             id: "toggleVideoPopover",
             function: function() {
+                JitsiMeetJS.analytics.sendEvent('shortcut.videomute.toggled');
                 APP.conference.toggleVideoMuted();
+            }
+        },
+        "?": {
+            character: "?",
+            function: function(e) {
+                JitsiMeetJS.analytics.sendEvent('shortcut.shortcut.help');
+                APP.UI.toggleKeyboardShortcutsPanel();
             }
         }
     };
@@ -50,20 +77,21 @@ function initShortcutHandlers() {
 var KeyboardShortcut = {
     init: function () {
         initShortcutHandlers();
+        var self = this;
         window.onkeyup = function(e) {
-            var keycode = e.which;
+            var key = self.getKeyboardKey(e).toUpperCase();
+            var num = parseInt(key, 10);
             if(!($(":focus").is("input[type=text]") ||
                 $(":focus").is("input[type=password]") ||
                 $(":focus").is("textarea"))) {
-                if (typeof shortcuts[keycode] === "object") {
-                    shortcuts[keycode].function();
+                if (shortcuts.hasOwnProperty(key)) {
+                    shortcuts[key].function(e);
                 }
-                else if (keycode >= "0".charCodeAt(0) &&
-                    keycode <= "9".charCodeAt(0)) {
-                    APP.UI.clickOnVideo(keycode - "0".charCodeAt(0) + 1);
+                else if (!isNaN(num) && num >= 0 && num <= 9) {
+                    APP.UI.clickOnVideo(num + 1);
                 }
-                //esc while the smileys are visible hides them
-            } else if (keycode === 27 &&
+            //esc while the smileys are visible hides them
+            } else if (key === "ESCAPE" &&
                 $('#smileysContainer').is(':visible')) {
                 APP.UI.toggleSmileys();
             }
@@ -73,13 +101,13 @@ var KeyboardShortcut = {
             if(!($(":focus").is("input[type=text]") ||
                 $(":focus").is("input[type=password]") ||
                 $(":focus").is("textarea"))) {
-                if(e.which === "T".charCodeAt(0)) {
+                var key = self.getKeyboardKey(e).toUpperCase();
+                if(key === "T") {
                     if(APP.conference.isLocalAudioMuted())
                         APP.conference.muteAudio(false);
                 }
             }
         };
-        var self = this;
         $('body').popover({ selector: '[data-toggle=popover]',
             trigger: 'click hover',
             content: function() {
@@ -94,14 +122,40 @@ var KeyboardShortcut = {
      * @returns {string} the keyboard shortcut used for the id given
      */
     getShortcut: function (id) {
-        for (var keycode in shortcuts) {
-            if (shortcuts.hasOwnProperty(keycode)) {
-                if (shortcuts[keycode].id === id) {
-                    return " (" + shortcuts[keycode].character + ")";
+        for (var key in shortcuts) {
+            if (shortcuts.hasOwnProperty(key)) {
+                if (shortcuts[key].id === id) {
+                    return " (" + shortcuts[key].character + ")";
                 }
             }
         }
         return "";
+    },
+    /**
+     * @param e a KeyboardEvent
+     * @returns {string} e.key or something close if not supported
+     */
+    getKeyboardKey: function (e) {
+        if (typeof e.key === "string") {
+            return e.key;
+        }
+        if (e.type === "keypress" && (
+                (e.which >= 32 && e.which <= 126) ||
+                (e.which >= 160 && e.which <= 255) )) {
+            return String.fromCharCode(e.which);
+        }
+        // try to fallback (0-9A-Za-z and QWERTY keyboard)
+        switch (e.which) {
+        case 27:
+            return "Escape";
+        case 191:
+            return e.shiftKey ? "?" : "/";
+        }
+        if (e.shiftKey || e.type === "keypress") {
+            return String.fromCharCode(e.which);
+        } else {
+            return String.fromCharCode(e.which).toLowerCase();
+        }
     }
 };
 

@@ -1,8 +1,6 @@
-/* global APP, $, config, interfaceConfig */
+/* global APP, $, config, interfaceConfig, JitsiMeetJS */
 /* jshint -W101 */
-import messageHandler from '../util/MessageHandler';
 import UIUtil from '../util/UIUtil';
-import AnalyticsAdapter from '../../statistics/AnalyticsAdapter';
 import UIEvents from '../../../service/UI/UIEvents';
 
 let roomUrl = null;
@@ -21,13 +19,17 @@ function openLinkDialog () {
     } else {
         inviteAttributes = "value=\"" + encodeURI(roomUrl) + "\"";
     }
-    messageHandler.openTwoButtonDialog(
+    APP.UI.messageHandler.openTwoButtonDialog(
         "dialog.shareLink", null, null,
         `<input id="inviteLinkRef" type="text" ${inviteAttributes} onclick="this.select();" readonly>`,
         false, "dialog.Invite",
         function (e, v) {
             if (v && roomUrl) {
+                JitsiMeetJS.analytics.sendEvent('toolbar.invite.button');
                 emitter.emit(UIEvents.USER_INVITED, roomUrl);
+            }
+            else {
+                JitsiMeetJS.analytics.sendEvent('toolbar.invite.cancel');
             }
         },
         function (event) {
@@ -38,6 +40,10 @@ function openLinkDialog () {
                     $(event.target).find('button[value=true]').prop('disabled', true);
                 }
             }
+        },
+        function (e, v, m, f) {
+            if(!v && !m && !f)
+                JitsiMeetJS.analytics.sendEvent('toolbar.invite.close');
         }
     );
 }
@@ -57,79 +63,80 @@ const buttonHandlers = {
                     $("#unableToUnmutePopup"), true, 5000);
             }
             else {
-                AnalyticsAdapter.sendEvent('toolbar.audio.unmuted');
+                JitsiMeetJS.analytics.sendEvent('toolbar.audio.unmuted');
                 emitter.emit(UIEvents.AUDIO_MUTED, false, true);
             }
         } else {
-            AnalyticsAdapter.sendEvent('toolbar.audio.muted');
+            JitsiMeetJS.analytics.sendEvent('toolbar.audio.muted');
             emitter.emit(UIEvents.AUDIO_MUTED, true, true);
         }
     },
     "toolbar_button_camera": function () {
         if (APP.conference.videoMuted) {
-            AnalyticsAdapter.sendEvent('toolbar.video.enabled');
+            JitsiMeetJS.analytics.sendEvent('toolbar.video.enabled');
             emitter.emit(UIEvents.VIDEO_MUTED, false);
         } else {
-            AnalyticsAdapter.sendEvent('toolbar.video.disabled');
+            JitsiMeetJS.analytics.sendEvent('toolbar.video.disabled');
             emitter.emit(UIEvents.VIDEO_MUTED, true);
         }
     },
     "toolbar_button_security": function () {
+        JitsiMeetJS.analytics.sendEvent('toolbar.lock.clicked');
         emitter.emit(UIEvents.ROOM_LOCK_CLICKED);
     },
     "toolbar_button_link": function () {
-        AnalyticsAdapter.sendEvent('toolbar.invite.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.invite.clicked');
         openLinkDialog();
     },
     "toolbar_button_chat": function () {
-        AnalyticsAdapter.sendEvent('toolbar.chat.toggled');
+        JitsiMeetJS.analytics.sendEvent('toolbar.chat.toggled');
         emitter.emit(UIEvents.TOGGLE_CHAT);
     },
     "toolbar_button_etherpad": function () {
-        AnalyticsAdapter.sendEvent('toolbar.etherpad.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.etherpad.clicked');
         emitter.emit(UIEvents.ETHERPAD_CLICKED);
     },
     "toolbar_button_sharedvideo": function () {
-        AnalyticsAdapter.sendEvent('toolbar.sharedvideo.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.sharedvideo.clicked');
         emitter.emit(UIEvents.SHARED_VIDEO_CLICKED);
     },
     "toolbar_button_desktopsharing": function () {
         if (APP.conference.isSharingScreen) {
-            AnalyticsAdapter.sendEvent('toolbar.screen.disabled');
+            JitsiMeetJS.analytics.sendEvent('toolbar.screen.disabled');
         } else {
-            AnalyticsAdapter.sendEvent('toolbar.screen.enabled');
+            JitsiMeetJS.analytics.sendEvent('toolbar.screen.enabled');
         }
         emitter.emit(UIEvents.TOGGLE_SCREENSHARING);
     },
     "toolbar_button_fullScreen": function() {
-        AnalyticsAdapter.sendEvent('toolbar.fullscreen.enabled');
+        JitsiMeetJS.analytics.sendEvent('toolbar.fullscreen.enabled');
         UIUtil.buttonClick("#toolbar_button_fullScreen", "icon-full-screen icon-exit-full-screen");
         emitter.emit(UIEvents.FULLSCREEN_TOGGLE);
     },
     "toolbar_button_sip": function () {
-        AnalyticsAdapter.sendEvent('toolbar.sip.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.sip.clicked');
         showSipNumberInput();
     },
     "toolbar_button_dialpad": function () {
-        AnalyticsAdapter.sendEvent('toolbar.sip.dialpad.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.sip.dialpad.clicked');
         dialpadButtonClicked();
     },
     "toolbar_button_settings": function () {
-        AnalyticsAdapter.sendEvent('toolbar.settings.toggled');
+        JitsiMeetJS.analytics.sendEvent('toolbar.settings.toggled');
         emitter.emit(UIEvents.TOGGLE_SETTINGS);
     },
     "toolbar_button_hangup": function () {
-        AnalyticsAdapter.sendEvent('toolbar.hangup');
+        JitsiMeetJS.analytics.sendEvent('toolbar.hangup');
         emitter.emit(UIEvents.HANGUP);
     },
     "toolbar_button_login": function () {
-        AnalyticsAdapter.sendEvent('toolbar.authenticate.login.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.authenticate.login.clicked');
         emitter.emit(UIEvents.AUTH_CLICKED);
     },
     "toolbar_button_logout": function () {
-        AnalyticsAdapter.sendEvent('toolbar.authenticate.logout.clicked');
+        JitsiMeetJS.analytics.sendEvent('toolbar.authenticate.logout.clicked');
         // Ask for confirmation
-        messageHandler.openTwoButtonDialog(
+        APP.UI.messageHandler.openTwoButtonDialog(
             "dialog.logoutTitle",
             null,
             "dialog.logoutQuestion",
@@ -167,7 +174,7 @@ function showSipNumberInput () {
         : '';
 
     let sipMsg = APP.translation.generateTranslationHTML("dialog.sipMsg");
-    messageHandler.openTwoButtonDialog(
+    APP.UI.messageHandler.openTwoButtonDialog(
         null, null, null,
         `<h2>${sipMsg}</h2>
             <input name="sipNumber" type="text" value="${defaultNumber}" autofocus>`,
@@ -191,7 +198,9 @@ const Toolbar = {
         UIUtil.hideDisabledButtons(defaultToolbarButtons);
 
         Object.keys(buttonHandlers).forEach(
-            buttonId => $(`#${buttonId}`).click(buttonHandlers[buttonId])
+            buttonId => $(`#${buttonId}`).click(function(event) {
+                !$(this).prop('disabled') && buttonHandlers[buttonId](event);
+            })
         );
     },
     /**
@@ -362,6 +371,29 @@ const Toolbar = {
     },
 
     /**
+     * Marks video icon as disabled or not.
+     * @param {boolean} disabled if icon should look like disabled or not
+     */
+    markVideoIconAsDisabled (disabled) {
+        var $btn = $('#toolbar_button_camera');
+
+        $btn
+            .prop("disabled", disabled)
+            .attr("data-i18n", disabled
+                ? "[content]toolbar.cameraDisabled"
+                : "[content]toolbar.videomute")
+            .attr("shortcut", disabled ? "" : "toggleVideoPopover");
+
+        disabled
+            ? $btn.attr("disabled", "disabled")
+            : $btn.removeAttr("disabled");
+
+        APP.translation.translateElement($btn);
+
+        disabled && this.markVideoIconAsMuted(disabled);
+    },
+
+    /**
      * Marks audio icon as muted or not.
      * @param {boolean} muted if icon should look like muted or not
      */
@@ -371,16 +403,45 @@ const Toolbar = {
     },
 
     /**
+     * Marks audio icon as disabled or not.
+     * @param {boolean} disabled if icon should look like disabled or not
+     */
+    markAudioIconAsDisabled (disabled) {
+        var $btn = $('#toolbar_button_mute');
+
+        $btn
+            .prop("disabled", disabled)
+            .attr("data-i18n", disabled
+                ? "[content]toolbar.micDisabled"
+                : "[content]toolbar.mute")
+            .attr("shortcut", disabled ? "" : "mutePopover");
+
+        disabled
+            ? $btn.attr("disabled", "disabled")
+            : $btn.removeAttr("disabled");
+
+        APP.translation.translateElement($btn);
+
+        disabled && this.markAudioIconAsMuted(disabled);
+    },
+
+    /**
      * Indicates if the toolbar is currently hovered.
-     * @return {true} if the toolbar is currently hovered, {false} otherwise
+     * @return {boolean} true if the toolbar is currently hovered,
+     * false otherwise
      */
     isHovered() {
+        var hovered = false;
         this.toolbarSelector.find('*').each(function () {
             let id = $(this).attr('id');
             if ($(`#${id}:hover`).length > 0) {
-                return true;
+                hovered = true;
+                // break each
+                return false;
             }
         });
+        if (hovered)
+            return true;
         if ($("#bottomToolbar:hover").length > 0) {
             return true;
         }

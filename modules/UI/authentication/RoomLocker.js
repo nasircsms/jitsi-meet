@@ -1,8 +1,5 @@
 /* global APP, JitsiMeetJS */
-import messageHandler from '../util/MessageHandler';
 import UIUtil from '../util/UIUtil';
-//FIXME:
-import AnalyticsAdapter from '../../statistics/AnalyticsAdapter';
 
 /**
  * Show dialog which asks user for new password for the conference.
@@ -19,14 +16,15 @@ function askForNewPassword () {
     `;
 
     return new Promise(function (resolve, reject) {
-        messageHandler.openTwoButtonDialog(
+        APP.UI.messageHandler.openTwoButtonDialog(
             null, null, null,
             msg, false, "dialog.Save",
             function (e, v, m, f) {
                 if (v && f.lockKey) {
                     resolve(UIUtil.escapeHtml(f.lockKey));
-                } else {
-                    reject();
+                }
+                else {
+                    reject(APP.UI.messageHandler.CANCEL);
                 }
             },
             null, null, 'input:first'
@@ -50,7 +48,7 @@ function askForPassword () {
                placeholder="${passMsg}" autofocus>
     `;
     return new Promise(function (resolve, reject) {
-        messageHandler.openTwoButtonDialog(
+        APP.UI.messageHandler.openTwoButtonDialog(
             null, null, null, msg,
             true, "dialog.Ok",
             function (e, v, m, f) {}, null,
@@ -58,7 +56,7 @@ function askForPassword () {
                 if (v && f.lockKey) {
                     resolve(UIUtil.escapeHtml(f.lockKey));
                 } else {
-                    reject();
+                    reject(APP.UI.messageHandler.CANCEL);
                 }
             },
             ':input:first'
@@ -72,14 +70,14 @@ function askForPassword () {
  */
 function askToUnlock () {
     return new Promise(function (resolve, reject) {
-        messageHandler.openTwoButtonDialog(
+        APP.UI.messageHandler.openTwoButtonDialog(
             null, null, "dialog.passwordCheck",
             null, false, "dialog.Remove",
             function (e, v) {
                 if (v) {
                     resolve();
                 } else {
-                    reject();
+                    reject(APP.UI.messageHandler.CANCEL);
                 }
             }
         );
@@ -92,7 +90,8 @@ function askToUnlock () {
  */
 function notifyPasswordNotSupported () {
     console.warn('room passwords not supported');
-    messageHandler.showError("dialog.warning", "dialog.passwordNotSupported");
+    APP.UI.messageHandler.showError(
+        "dialog.warning", "dialog.passwordNotSupported");
 }
 
 /**
@@ -101,7 +100,8 @@ function notifyPasswordNotSupported () {
  */
 function notifyPasswordFailed(err) {
     console.warn('setting password failed', err);
-    messageHandler.showError("dialog.lockTitle", "dialog.lockMessage");
+    APP.UI.messageHandler.showError(
+        "dialog.lockTitle", "dialog.lockMessage");
 }
 
 const ConferenceErrors = JitsiMeetJS.errors.conference;
@@ -114,6 +114,7 @@ const ConferenceErrors = JitsiMeetJS.errors.conference;
  */
 export default function createRoomLocker (room) {
     let password;
+    let dialog = null;
 
     function lock (newPass) {
         return room.lock(newPass).then(function () {
@@ -146,11 +147,16 @@ export default function createRoomLocker (room) {
          * @returns {Promise}
          */
         askToUnlock () {
-            return askToUnlock().then(function () {
-                return lock();
-            }).then(function () {
-                AnalyticsAdapter.sendEvent('toolbar.lock.disabled');
-            });
+            return askToUnlock().then(
+                () => { return lock(); }
+            ).then(function () {
+                JitsiMeetJS.analytics.sendEvent('toolbar.lock.disabled');
+            }).catch(
+                reason => {
+                    if (reason !== APP.UI.messageHandler.CANCEL)
+                        console.error(reason);
+                }
+            );
         },
 
         /**
@@ -159,30 +165,51 @@ export default function createRoomLocker (room) {
          * @returns {Promise}
          */
         askToLock () {
-            return askForNewPassword().then(function (newPass) {
-                return lock(newPass);
-            }).then(function () {
-                AnalyticsAdapter.sendEvent('toolbar.lock.enabled');
-            });
+            return askForNewPassword().then(
+                newPass => { return lock(newPass);}
+            ).then(function () {
+                JitsiMeetJS.analytics.sendEvent('toolbar.lock.enabled');
+            }).catch(
+                reason => {
+                    if (reason !== APP.UI.messageHandler.CANCEL)
+                        console.error(reason);
+                }
+            );
         },
 
         /**
          * Asks user for required conference password.
          */
         requirePassword () {
-            return askForPassword().then(function (newPass) {
-                password = newPass;
-            });
+            return askForPassword().then(
+                newPass => { password = newPass; }
+            ).catch(
+                reason => {
+                    if (reason !== APP.UI.messageHandler.CANCEL)
+                        console.error(reason);
+                }
+            );
         },
 
         /**
          * Show notification that to set/remove password user must be moderator.
          */
         notifyModeratorRequired () {
+            if (dialog)
+                return;
+
+            let closeCallback = function () {
+                dialog = null;
+            };
+
             if (password) {
-                messageHandler.openMessageDialog(null, "dialog.passwordError");
+                dialog = APP.UI.messageHandler
+                    .openMessageDialog(null, "dialog.passwordError",
+                        null, null, closeCallback);
             } else {
-                messageHandler.openMessageDialog(null, "dialog.passwordError2");
+                dialog = APP.UI.messageHandler
+                    .openMessageDialog(null, "dialog.passwordError2",
+                        null, null, closeCallback);
             }
         }
     };

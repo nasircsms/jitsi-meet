@@ -23,6 +23,25 @@ import conference from './conference';
 import API from './modules/API/API';
 
 import UIEvents from './service/UI/UIEvents';
+import getTokenData from "./modules/TokenData/TokenData";
+
+/**
+ * Tries to push history state with the following parameters:
+ * 'VideoChat', `Room: ${roomName}`, URL. If fail, prints the error and returns
+ * it.
+ */
+function pushHistoryState(roomName, URL) {
+    try {
+        window.history.pushState(
+            'VideoChat', `Room: ${roomName}`, URL
+        );
+    } catch (e) {
+        console.warn("Push history state failed with parameters:",
+            'VideoChat', `Room: ${roomName}`, URL, e);
+        return e;
+    }
+    return null;
+}
 
 /**
  * Builds and returns the room name.
@@ -33,9 +52,9 @@ function buildRoomName () {
     if(!roomName) {
         let word = RoomnameGenerator.generateRoomWithoutSeparator();
         roomName = word.toLowerCase();
-        window.history.pushState(
-            'VideoChat', `Room: ${word}`, window.location.pathname + word
-        );
+        let historyURL = window.location.href + word;
+        //Trying to push state with current URL + roomName
+        pushHistoryState(word, historyURL);
     }
 
     return roomName;
@@ -66,10 +85,24 @@ const APP = {
             require("./modules/keyboardshortcut/keyboardshortcut");
         this.translation = require("./modules/translation/translation");
         this.configFetch = require("./modules/config/HttpConfigFetch");
+        this.tokenData = getTokenData();
     }
 };
 
+/**
+ * If JWT token data it will be used for local user settings
+ */
+function setTokenData() {
+    let localUser = APP.tokenData.caller;
+    if(localUser) {
+        APP.settings.setEmail((localUser.getEmail() || "").trim());
+        APP.settings.setAvatarUrl((localUser.getAvatarUrl() || "").trim());
+        APP.settings.setDisplayName((localUser.getName() || "").trim());
+    }
+}
+
 function init() {
+    setTokenData();
     var isUIReady = APP.UI.start();
     if (isUIReady) {
         APP.conference.init({roomName: buildRoomName()}).then(function () {
@@ -82,6 +115,8 @@ function init() {
 
             APP.keyboardshortcut.init();
         }).catch(function (err) {
+            APP.UI.hideRingOverLay();
+            APP.API.notifyConferenceLeft(APP.conference.roomName);
             console.error(err);
         });
     }
@@ -133,7 +168,7 @@ $(document).ready(function () {
 
     APP.translation.init(settings.getLanguage());
 
-    APP.API.init();
+    APP.API.init(APP.tokenData.externalAPISettings);
 
     obtainConfigAndInit();
 });

@@ -1,6 +1,6 @@
-/* global $, APP, YT, onPlayerReady, onPlayerStateChange, onPlayerError */
+/* global $, APP, YT, onPlayerReady, onPlayerStateChange, onPlayerError,
+JitsiMeetJS */
 
-import messageHandler from '../util/MessageHandler';
 import UIUtil from '../util/UIUtil';
 import UIEvents from '../../../service/UI/UIEvents';
 
@@ -18,6 +18,13 @@ export const SHARED_VIDEO_CONTAINER_TYPE = "sharedvideo";
  */
 const defaultSharedVideoLink = "https://www.youtube.com/watch?v=xNXN7CZk8X0";
 const updateInterval = 5000; // milliseconds
+
+/**
+ * The dialog for user input (video link).
+ * @type {null}
+ */
+let dialog = null;
+
 /**
  * Manager of shared video.
  */
@@ -57,24 +64,41 @@ export default class SharedVideoManager {
      * asks whether the user wants to stop sharing the video.
      */
     toggleSharedVideo () {
+        if (dialog)
+            return;
+
         if(!this.isSharedVideoShown) {
             requestVideoLink().then(
-                    url => this.emitter.emit(
-                                UIEvents.UPDATE_SHARED_VIDEO, url, 'start'),
-                    err => console.error('SHARED VIDEO CANCELED', err)
+                    url => {
+                        this.emitter.emit(
+                            UIEvents.UPDATE_SHARED_VIDEO, url, 'start');
+                        JitsiMeetJS.analytics.sendEvent('sharedvideo.started');
+                    },
+                    err => {
+                        console.log('SHARED VIDEO CANCELED', err);
+                        JitsiMeetJS.analytics.sendEvent('sharedvideo.canceled');
+                    }
             );
             return;
         }
 
         if(APP.conference.isLocalId(this.from)) {
-            showStopVideoPropmpt().then(() =>
-                this.emitter.emit(
-                    UIEvents.UPDATE_SHARED_VIDEO, this.url, 'stop'));
+            showStopVideoPropmpt().then(() => {
+                    this.emitter.emit(
+                        UIEvents.UPDATE_SHARED_VIDEO, this.url, 'stop');
+                    JitsiMeetJS.analytics.sendEvent('sharedvideo.stoped');
+                },
+                () => {});
         } else {
-            messageHandler.openMessageDialog(
+            dialog = APP.UI.messageHandler.openMessageDialog(
                 "dialog.shareVideoTitle",
-                "dialog.alreadySharedVideoMsg"
+                "dialog.alreadySharedVideoMsg",
+                null, null,
+                function () {
+                    dialog = null;
+                }
             );
+            JitsiMeetJS.analytics.sendEvent('sharedvideo.alreadyshared');
         }
     }
 
@@ -178,6 +202,7 @@ export default class SharedVideoManager {
                 self.smartAudioMute();
             } else if (event.data == YT.PlayerState.PAUSED) {
                 self.smartAudioUnmute();
+                JitsiMeetJS.analytics.sendEvent('sharedvideo.paused');
             }
             self.fireSharedVideoEvent(event.data == YT.PlayerState.PAUSED);
         };
@@ -207,6 +232,7 @@ export default class SharedVideoManager {
             else if (event.data.volume <=0 || event.data.muted) {
                 self.smartAudioUnmute();
             }
+            JitsiMeetJS.analytics.sendEvent('sharedvideo.volumechanged');
         };
 
         window.onPlayerReady = function(event) {
@@ -625,7 +651,6 @@ SharedVideoThumb.prototype.createContainer = function (spanId) {
 
     // add the avatar
     var avatar = document.createElement('img');
-    avatar.id = 'avatar_' + this.id;
     avatar.className = 'sharedVideoAvatar';
     avatar.src = "https://img.youtube.com/vi/" + this.url + "/0.jpg";
     container.appendChild(avatar);
@@ -701,7 +726,7 @@ function getYoutubeLink(url) {
  */
 function showStopVideoPropmpt() {
     return new Promise(function (resolve, reject) {
-        messageHandler.openTwoButtonDialog(
+        dialog = APP.UI.messageHandler.openTwoButtonDialog(
             "dialog.removeSharedVideoTitle",
             null,
             "dialog.removeSharedVideoMsg",
@@ -714,6 +739,10 @@ function showStopVideoPropmpt() {
                 } else {
                     reject();
                 }
+            },
+            null,
+            function () {
+                dialog = null;
             }
         );
 
@@ -736,7 +765,7 @@ function requestVideoLink() {
     const defaultUrl = i18n.translateString("defaultLink", i18nOptions);
 
     return new Promise(function (resolve, reject) {
-        let dialog = messageHandler.openDialogWithStates({
+        dialog = APP.UI.messageHandler.openDialogWithStates({
             state0: {
                 html:  `
                     <h2>${title}</h2>
@@ -796,8 +825,11 @@ function requestVideoLink() {
                     }
                 }
             }
+        }, {
+            close: function () {
+                dialog = null;
+            }
         });
 
     });
 }
-

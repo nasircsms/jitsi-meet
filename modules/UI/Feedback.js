@@ -1,10 +1,5 @@
-/* global $, APP, config, interfaceConfig */
+/* global $, APP, config, interfaceConfig, JitsiMeetJS */
 import UIEvents from "../../service/UI/UIEvents";
-
-/*
- * Created by Yana Stamcheva on 2/10/15.
- */
-var messageHandler = require("./util/MessageHandler");
 
 /**
  * Constructs the html for the overall feedback window.
@@ -204,9 +199,12 @@ var Feedback = {
                         var feedbackDetails
                             = document.getElementById("feedbackTextArea").value;
 
-                        if (feedbackDetails && feedbackDetails.length > 0)
+                        if (feedbackDetails && feedbackDetails.length > 0) {
+                            JitsiMeetJS.analytics.sendEvent(
+                                'feedback.rating', Feedback.feedbackScore);
                             APP.conference.sendFeedback( Feedback.feedbackScore,
                                                     feedbackDetails);
+                        }
 
                         if (feedbackWindowCallback)
                             feedbackWindowCallback();
@@ -232,6 +230,7 @@ var Feedback = {
                     closeText: '',
                     loaded: onLoadFunction,
                     position: {width: 500}}, null);
+        JitsiMeetJS.analytics.sendEvent('feedback.open');
     },
     /**
      * Toggles the appropriate css class for the given number of stars, to

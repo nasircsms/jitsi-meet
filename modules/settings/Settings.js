@@ -9,6 +9,7 @@ let cameraDeviceId = '';
 let micDeviceId = '';
 let welcomePageDisabled = false;
 let localFlipX = null;
+let avatarUrl = '';
 
 function supportsLocalStorage() {
     try {
@@ -34,6 +35,7 @@ if (supportsLocalStorage()) {
     }
 
     email = UIUtil.unescapeHtml(window.localStorage.email || '');
+    avatarUrl = UIUtil.unescapeHtml(window.localStorage.avatarUrl || '');
     localFlipX = JSON.parse(window.localStorage.localFlipX || true);
     displayName = UIUtil.unescapeHtml(window.localStorage.displayname || '');
     language = window.localStorage.language;
@@ -43,14 +45,18 @@ if (supportsLocalStorage()) {
         window.localStorage.welcomePageDisabled || false
     );
 
-    var audioOutputDeviceId = window.localStorage.audioOutputDeviceId;
+    // Currently audio output device change is supported only in Chrome and
+    // default output always has 'default' device ID
+    var audioOutputDeviceId = window.localStorage.audioOutputDeviceId
+        || 'default';
 
-    if (typeof audioOutputDeviceId !== 'undefined' && audioOutputDeviceId !==
-            JitsiMeetJS.mediaDevices.getAudioOutputDevice()) {
-        JitsiMeetJS.mediaDevices.setAudioOutputDevice(
-            window.localStorage.audioOutputDeviceId).catch((ex) => {
-                console.error('failed to set audio output device from local ' +
-                    'storage', ex);
+    if (audioOutputDeviceId !==
+        JitsiMeetJS.mediaDevices.getAudioOutputDevice()) {
+        JitsiMeetJS.mediaDevices.setAudioOutputDevice(audioOutputDeviceId)
+            .catch((ex) => {
+                console.warn('Failed to set audio output device from local ' +
+                    'storage. Default audio output device will be used' +
+                    'instead.', ex);
             });
     }
 } else {
@@ -93,6 +99,24 @@ export default {
     getEmail: function () {
         return email;
     },
+
+    /**
+     * Sets new avatarUrl for local user and saves it to the local storage.
+     * @param {string} newAvatarUrl new avatarUrl for the local user
+     */
+    setAvatarUrl: function (newAvatarUrl) {
+        avatarUrl = newAvatarUrl;
+        window.localStorage.avatarUrl = UIUtil.escapeHtml(newAvatarUrl);
+    },
+
+    /**
+     * Returns avatarUrl address of the local user.
+     * @returns {string} avatarUrl
+     */
+    getAvatarUrl: function () {
+        return avatarUrl;
+    },
+
 
     getLanguage () {
         return language;
@@ -166,10 +190,10 @@ export default {
     /**
      * Set device id of the audio output device which is currently in use.
      * Empty string stands for default device.
-     * @param {string} newId new audio output device id
+     * @param {string} newId='default' - new audio output device id
      * @returns {Promise}
      */
-    setAudioOutputDeviceId: function (newId = '') {
+    setAudioOutputDeviceId: function (newId = 'default') {
         return JitsiMeetJS.mediaDevices.setAudioOutputDevice(newId)
             .then(() => window.localStorage.audioOutputDeviceId = newId);
     },

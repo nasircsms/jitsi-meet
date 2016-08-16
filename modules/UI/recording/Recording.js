@@ -1,4 +1,4 @@
-/* global APP, $, config, interfaceConfig */
+/* global APP, $, config, interfaceConfig, JitsiMeetJS */
 /*
  * Copyright @ 2015 Atlassian Pty Ltd
  *
@@ -21,6 +21,10 @@ import Feedback from '../Feedback.js';
 import Toolbar from '../toolbars/Toolbar';
 import BottomToolbar from '../toolbars/BottomToolbar';
 
+/**
+ * The dialog for user input.
+ */
+let dialog = null;
 
 /**
  * Indicates if the recording button should be enabled.
@@ -50,7 +54,7 @@ function _requestLiveStreamId() {
             "liveStreaming.streamIdRequired");
 
     return new Promise(function (resolve, reject) {
-        let dialog = APP.UI.messageHandler.openDialogWithStates({
+        dialog = APP.UI.messageHandler.openDialogWithStates({
             state0: {
                 html:
                     `<h2>${msg}</h2>
@@ -78,7 +82,7 @@ function _requestLiveStreamId() {
                             return false;
                         }
                     } else {
-                        reject();
+                        reject(APP.UI.messageHandler.CANCEL);
                         dialog.close();
                         return false;
                     }
@@ -97,12 +101,16 @@ function _requestLiveStreamId() {
                 submit: function (e, v, m, f) {
                     e.preventDefault();
                     if (v === 0) {
-                        reject();
+                        reject(APP.UI.messageHandler.CANCEL);
                         dialog.close();
                     } else {
                         dialog.goToState('state0');
                     }
                 }
+            }
+        }, {
+            close: function () {
+                dialog = null;
             }
         });
     });
@@ -117,7 +125,7 @@ function _requestRecordingToken () {
     let token = APP.translation.translateString("dialog.token");
 
     return new Promise(function (resolve, reject) {
-        APP.UI.messageHandler.openTwoButtonDialog(
+        dialog = APP.UI.messageHandler.openTwoButtonDialog(
             null, null, null,
             `<h2>${msg}</h2>
              <input name="recordingToken" type="text"
@@ -128,11 +136,13 @@ function _requestRecordingToken () {
                 if (v && f.recordingToken) {
                     resolve(UIUtil.escapeHtml(f.recordingToken));
                 } else {
-                    reject();
+                    reject(APP.UI.messageHandler.CANCEL);
                 }
             },
             null,
-            function () { },
+            function () {
+                dialog = null;
+            },
             ':input:first'
         );
     });
@@ -161,7 +171,7 @@ function _showStopRecordingPrompt (recordingType) {
     }
 
     return new Promise(function (resolve, reject) {
-        APP.UI.messageHandler.openTwoButtonDialog(
+        dialog = APP.UI.messageHandler.openTwoButtonDialog(
             title,
             null,
             message,
@@ -174,6 +184,10 @@ function _showStopRecordingPrompt (recordingType) {
                 } else {
                     reject();
                 }
+            },
+            null,
+            function () {
+                dialog = null;
             }
         );
     });
@@ -187,10 +201,11 @@ function _showStopRecordingPrompt (recordingType) {
  */
 function moveToCorner(selector, move) {
     let moveToCornerClass = "moveToCorner";
+    let containsClass = selector.hasClass(moveToCornerClass);
 
-    if (move && !selector.hasClass(moveToCornerClass))
+    if (move && !containsClass)
         selector.addClass(moveToCornerClass);
-    else
+    else if (!move && containsClass)
         selector.removeClass(moveToCornerClass);
 }
 
@@ -206,8 +221,20 @@ var Status = {
     AVAILABLE: "available",
     UNAVAILABLE: "unavailable",
     PENDING: "pending",
-    ERROR: "error"
+    RETRYING: "retrying",
+    ERROR: "error",
+    FAILED: "failed",
+    BUSY: "busy"
 };
+
+/**
+ * Checks whether if the given status is either PENDING or RETRYING
+ * @param status {Status} Jibri status to be checked
+ * @returns {boolean} true if the condition is met or false otherwise.
+ */
+function isStartingStatus(status) {
+    return status === Status.PENDING || status === Status.RETRYING;
+}
 
 /**
  * Manages the recording user interface and user experience.
@@ -229,11 +256,13 @@ var Recording = {
         // everyone.
         if (config.iAmRecorder) {
             VideoLayout.enableDeviceAvailabilityIcons(
-                APP.conference.localId, false);
+                APP.conference.getMyUserId(), false);
             VideoLayout.setLocalVideoVisible(false);
             Feedback.enableFeedback(false);
             Toolbar.enable(false);
             BottomToolbar.enable(false);
+            APP.UI.messageHandler.enableNotifications(false);
+            APP.UI.messageHandler.enablePopups(false);
         }
     },
 
@@ -245,21 +274,27 @@ var Recording = {
 
         if (recordingType === 'jibri') {
             this.baseClass = "fa fa-play-circle";
+            this.recordingTitle = "dialog.liveStreaming";
             this.recordingOnKey = "liveStreaming.on";
             this.recordingOffKey = "liveStreaming.off";
             this.recordingPendingKey = "liveStreaming.pending";
             this.failedToStartKey = "liveStreaming.failedToStart";
             this.recordingErrorKey = "liveStreaming.error";
             this.recordingButtonTooltip = "liveStreaming.buttonTooltip";
+            this.recordingUnavailable = "liveStreaming.unavailable";
+            this.recordingBusy = "liveStreaming.busy";
         }
         else {
             this.baseClass = "icon-recEnable";
+            this.recordingTitle = "dialog.recording";
             this.recordingOnKey = "recording.on";
             this.recordingOffKey = "recording.off";
             this.recordingPendingKey = "recording.pending";
             this.failedToStartKey = "recording.failedToStart";
             this.recordingErrorKey = "recording.error";
             this.recordingButtonTooltip = "recording.buttonTooltip";
+            this.recordingUnavailable = "recording.unavailable";
+            this.recordingBusy = "liveStreaming.busy";
         }
 
         selector.addClass(this.baseClass);
@@ -269,11 +304,20 @@ var Recording = {
 
         var self = this;
         selector.click(function () {
+            if (dialog)
+                return;
+            JitsiMeetJS.analytics.sendEvent('recording.clicked');
             switch (self.currentState) {
                 case Status.ON:
+                case Status.RETRYING:
                 case Status.PENDING: {
-                    _showStopRecordingPrompt(recordingType).then(() =>
-                        self.eventEmitter.emit(UIEvents.RECORDING_TOGGLED));
+                    _showStopRecordingPrompt(recordingType).then(
+                        () => {
+                            self.eventEmitter.emit(UIEvents.RECORDING_TOGGLED);
+                            JitsiMeetJS.analytics.sendEvent(
+                                'recording.stopped');
+                        },
+                        () => {});
                     break;
                 }
                 case Status.AVAILABLE:
@@ -282,25 +326,62 @@ var Recording = {
                         _requestLiveStreamId().then((streamId) => {
                             self.eventEmitter.emit( UIEvents.RECORDING_TOGGLED,
                                 {streamId: streamId});
-                        });
+                            JitsiMeetJS.analytics.sendEvent(
+                                'recording.started');
+                        }).catch(
+                            reason => {
+                                if (reason !== APP.UI.messageHandler.CANCEL)
+                                    console.error(reason);
+                                else
+                                    JitsiMeetJS.analytics.sendEvent(
+                                        'recording.canceled');
+                            }
+                        );
                     else {
                         if (self.predefinedToken) {
                             self.eventEmitter.emit( UIEvents.RECORDING_TOGGLED,
                                 {token: self.predefinedToken});
+                            JitsiMeetJS.analytics.sendEvent(
+                                'recording.started');
                             return;
                         }
 
                         _requestRecordingToken().then((token) => {
                             self.eventEmitter.emit( UIEvents.RECORDING_TOGGLED,
                                 {token: token});
-                        });
+                            JitsiMeetJS.analytics.sendEvent(
+                                'recording.started');
+                        }).catch(
+                            reason => {
+                                if (reason !== APP.UI.messageHandler.CANCEL)
+                                    console.error(reason);
+                                else
+                                    JitsiMeetJS.analytics.sendEvent(
+                                        'recording.canceled');
+                            }
+                        );
                     }
                     break;
                 }
+                case Status.BUSY: {
+                    dialog = APP.UI.messageHandler.openMessageDialog(
+                        self.recordingTitle,
+                        self.recordingBusy,
+                        null, null,
+                        function () {
+                            dialog = null;
+                        }
+                    );
+                    break;
+                }
                 default: {
-                    APP.UI.messageHandler.openMessageDialog(
-                        "dialog.liveStreaming",
-                        "liveStreaming.unavailable"
+                    dialog = APP.UI.messageHandler.openMessageDialog(
+                        self.recordingTitle,
+                        self.recordingUnavailable,
+                        null, null,
+                        function () {
+                            dialog = null;
+                        }
                     );
                 }
             }
@@ -342,8 +423,12 @@ var Recording = {
     updateRecordingUI (recordingState) {
         let buttonSelector = $('#toolbar_button_record');
 
+        let oldState = this.currentState;
+        this.currentState = recordingState;
+
         // TODO: handle recording state=available
-        if (recordingState === Status.ON) {
+        if (recordingState === Status.ON ||
+            recordingState === Status.RETRYING) {
 
             buttonSelector.removeClass(this.baseClass);
             buttonSelector.addClass(this.baseClass + " active");
@@ -351,19 +436,21 @@ var Recording = {
             this._updateStatusLabel(this.recordingOnKey, false);
         }
         else if (recordingState === Status.OFF
-                || recordingState === Status.UNAVAILABLE) {
+                || recordingState === Status.UNAVAILABLE
+                || recordingState === Status.BUSY
+                || recordingState === Status.FAILED) {
 
             // We don't want to do any changes if this is
             // an availability change.
-            if (this.currentState !== Status.ON
-                && this.currentState !== Status.PENDING)
+            if (oldState !== Status.ON
+                && !isStartingStatus(oldState))
                 return;
 
             buttonSelector.removeClass(this.baseClass + " active");
             buttonSelector.addClass(this.baseClass);
 
             let messageKey;
-            if (this.currentState === Status.PENDING)
+            if (isStartingStatus(oldState))
                 messageKey = this.failedToStartKey;
             else
                 messageKey = this.recordingOffKey;
@@ -381,14 +468,13 @@ var Recording = {
 
             this._updateStatusLabel(this.recordingPendingKey, true);
         }
-        else if (recordingState === Status.ERROR) {
+        else if (recordingState === Status.ERROR
+                    || recordingState === Status.FAILED) {
             buttonSelector.removeClass(this.baseClass + " active");
             buttonSelector.addClass(this.baseClass);
 
             this._updateStatusLabel(this.recordingErrorKey, true);
         }
-
-        this.currentState = recordingState;
 
         let labelSelector = $('#recordingLabel');
 
@@ -396,6 +482,12 @@ var Recording = {
         if (recordingState !== Status.AVAILABLE
             && !labelSelector.is(":visible"))
             labelSelector.css({display: "inline-block"});
+
+        // Recording spinner
+        if (recordingState === Status.RETRYING)
+            $("#recordingSpinner").show();
+        else
+            $("#recordingSpinner").hide();
     },
     // checks whether recording is enabled and whether we have params
     // to start automatically recording
@@ -414,11 +506,12 @@ var Recording = {
      */
     _updateStatusLabel(textKey, isCentered) {
         let labelSelector = $('#recordingLabel');
+        let labelTextSelector = $('#recordingLabelText');
 
         moveToCorner(labelSelector, !isCentered);
 
-        labelSelector.attr("data-i18n", textKey);
-        labelSelector.text(APP.translation.translateString(textKey));
+        labelTextSelector.attr("data-i18n", textKey);
+        labelTextSelector.text(APP.translation.translateString(textKey));
     }
 };
 
