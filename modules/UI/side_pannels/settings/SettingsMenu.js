@@ -1,4 +1,4 @@
-/* global APP, $, JitsiMeetJS */
+/* global APP, $, JitsiMeetJS, interfaceConfig */
 import UIUtil from "../../util/UIUtil";
 import UIEvents from "../../../../service/UI/UIEvents";
 import languages from "../../../../service/translation/languages";
@@ -6,6 +6,7 @@ import Settings from '../../../settings/Settings';
 
 /**
  * Generate html select options for available languages.
+ *
  * @param {string[]} items available languages
  * @param {string} [currentLang] current language
  * @returns {string}
@@ -28,6 +29,7 @@ function generateLanguagesOptions(items, currentLang) {
 
 /**
  * Generate html select options for available physical devices.
+ *
  * @param {{ deviceId, label }[]} items available devices
  * @param {string} [selectedId] id of selected device
  * @param {boolean} permissionGranted if permission to use selected device type
@@ -62,88 +64,56 @@ function generateDevicesOptions(items, selectedId, permissionGranted) {
 
 export default {
     init (emitter) {
+        if (UIUtil.isSettingEnabled('devices')) {
+            // DEVICES LIST
+            JitsiMeetJS.mediaDevices.isDeviceListAvailable()
+                .then((isDeviceListAvailable) => {
+                    if (isDeviceListAvailable &&
+                        JitsiMeetJS.mediaDevices.isDeviceChangeAvailable()) {
+                        this._initializeDeviceSelectionSettings(emitter);
+                    }
+                });
 
-        // DISPLAY NAME
-        function updateDisplayName () {
-            emitter.emit(UIEvents.NICKNAME_CHANGED, $('#setDisplayName').val());
-        }
-        $('#setDisplayName')
-            .val(Settings.getDisplayName())
-            .keyup(function (event) {
-                if (event.keyCode === 13) { // enter
-                    updateDisplayName();
-                }
-            })
-            .focusout(updateDisplayName);
-
-
-        // EMAIL
-        function updateEmail () {
-            emitter.emit(UIEvents.EMAIL_CHANGED, $('#setEmail').val());
+            UIUtil.showElement("deviceOptionsTitle");
+            UIUtil.showElement("devicesOptions");
         }
 
-        // AVATAR URL CHANGED
-        function updateAvatarUrl () {
-            emitter.emit(UIEvents.AVATAR_URL_CHANGED, $('#setAvatarUrl').val());
-        }
-
-        $('#setEmail')
-            .val(Settings.getEmail())
-            .keyup(function (event) {
-            if (event.keyCode === 13) { // enter
-                updateEmail();
-            }
-        }).focusout(updateEmail);
-
-        $('#setAvatarUrl')
-            .val(Settings.getAvatarUrl())
-            .keyup(function (event) {
-            if (event.keyCode === 13) { // enter
-                updateAvatarUrl();
-            }
-        }).focusout(updateAvatarUrl);
-
-
-        // START MUTED
-        $("#startMutedOptions").change(function () {
-            let startAudioMuted = $("#startAudioMuted").is(":checked");
-            let startVideoMuted = $("#startVideoMuted").is(":checked");
-            emitter.emit(
-                UIEvents.START_MUTED_CHANGED,
-                startAudioMuted,
-                startVideoMuted
-            );
-        });
-
-        // FOLLOW ME
-        $("#followMeOptions").change(function () {
-            let isFollowMeEnabled = $("#followMeCheckBox").is(":checked");
-            emitter.emit(
-                UIEvents.FOLLOW_ME_ENABLED,
-                isFollowMeEnabled
-            );
-        });
-
-        // LANGUAGES BOX
-        let languagesBox = $("#languages_selectbox");
-        languagesBox.html(generateLanguagesOptions(
-            languages.getLanguages(),
-            APP.translation.getCurrentLanguage()
-        ));
-        APP.translation.translateElement(languagesBox);
-        languagesBox.change(function () {
-            emitter.emit(UIEvents.LANG_CHANGED, languagesBox.val());
-        });
-
-
-        // DEVICES LIST
-        JitsiMeetJS.mediaDevices.isDeviceListAvailable()
-            .then((isDeviceListAvailable) => {
-                if (isDeviceListAvailable &&
-                    JitsiMeetJS.mediaDevices.isDeviceChangeAvailable()) {
-                    this._initializeDeviceSelectionSettings(emitter);
-                }
+        if (UIUtil.isSettingEnabled('language')) {
+            //LANGUAGES BOX
+            let languagesBox = $("#languages_selectbox");
+            languagesBox.html(generateLanguagesOptions(
+                languages.getLanguages(),
+                APP.translation.getCurrentLanguage()
+            ));
+            APP.translation.translateElement(languagesBox);
+            languagesBox.change(function () {
+                emitter.emit(UIEvents.LANG_CHANGED, languagesBox.val());
             });
+
+            UIUtil.showElement("languages_selectbox");
+        }
+
+        if (UIUtil.isSettingEnabled('moderator')) {
+            // START MUTED
+            $("#startMutedOptions").change(function () {
+                let startAudioMuted = $("#startAudioMuted").is(":checked");
+                let startVideoMuted = $("#startVideoMuted").is(":checked");
+                emitter.emit(
+                    UIEvents.START_MUTED_CHANGED,
+                    startAudioMuted,
+                    startVideoMuted
+                );
+            });
+
+            // FOLLOW ME
+            $("#followMeOptions").change(function () {
+                let isFollowMeEnabled = $("#followMeCheckBox").is(":checked");
+                emitter.emit(
+                    UIEvents.FOLLOW_ME_ENABLED,
+                    isFollowMeEnabled
+                );
+            });
+        }
     },
 
     _initializeDeviceSelectionSettings(emitter) {
@@ -175,10 +145,18 @@ export default {
      * @param {boolean} show
      */
     showStartMutedOptions (show) {
-        if (show) {
-            $("#startMutedOptions").css("display", "block");
+        if (show && UIUtil.isSettingEnabled('moderator')) {
+            // Only show the subtitle if this isn't the only setting section.
+            if (!$("#moderatorOptionsTitle").is(":visible"))
+                UIUtil.showElement("moderatorOptionsTitle");
+
+            UIUtil.showElement("startMutedOptions");
         } else {
-            $("#startMutedOptions").css("display", "none");
+            // Only show the subtitle if this isn't the only setting section.
+            if ($("#moderatorOptionsTitle").is(":visible"))
+                UIUtil.hideElement("moderatorOptionsTitle");
+
+            UIUtil.hideElement("startMutedOptions");
         }
     },
 
@@ -193,10 +171,10 @@ export default {
      * @param {boolean} show {true} to show those options, {false} to hide them
      */
     showFollowMeOptions (show) {
-        if (show) {
-            $("#followMeOptions").css("display", "block");
+        if (show && UIUtil.isSettingEnabled('moderator')) {
+            UIUtil.showElement("followMeOptions");
         } else {
-            $("#followMeOptions").css("display", "none");
+            UIUtil.hideElement("followMeOptions");
         }
     },
 
@@ -205,23 +183,7 @@ export default {
      * @returns {boolean}
      */
     isVisible () {
-        return UIUtil.isVisible(document.getElementById("settingsmenu"));
-    },
-
-    /**
-     * Change user display name in the settings menu.
-     * @param {string} newDisplayName
-     */
-    changeDisplayName (newDisplayName) {
-        $('#setDisplayName').val(newDisplayName);
-    },
-
-    /**
-     * Change user avatar in the settings menu.
-     * @param {string} avatarUrl url of the new avatar
-     */
-    changeAvatar (avatarUrl) {
-        $('#avatar').attr('src', avatarUrl);
+        return UIUtil.isVisible(document.getElementById("settings_container"));
     },
 
     /**
@@ -304,6 +266,6 @@ export default {
 
         $('#devicesOptions').show();
 
-        APP.translation.translateElement($('#settingsmenu option'));
+        APP.translation.translateElement($('#settings_container option'));
     }
 };

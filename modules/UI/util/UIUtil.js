@@ -1,4 +1,6 @@
-/* global $, config, interfaceConfig */
+/* global $, APP, config, AJS, interfaceConfig */
+
+import KeyboardShortcut from '../../keyboardshortcut/keyboardshortcut';
 
 /**
  * Created by hristo on 12/22/14.
@@ -6,29 +8,10 @@
  var UIUtil = {
 
     /**
-     * Returns the size of the side panel.
-     */
-     getSidePanelSize () {
-        var availableHeight = window.innerHeight;
-        var availableWidth = window.innerWidth;
-
-        var panelWidth = 200;
-        if (availableWidth * 0.2 < 200) {
-            panelWidth = availableWidth * 0.2;
-        }
-
-        return [panelWidth, availableHeight];
-     },
-
-    /**
      * Returns the available video width.
      */
-    getAvailableVideoWidth: function (isSidePanelVisible) {
+    getAvailableVideoWidth: function () {
         let rightPanelWidth = 0;
-
-        if (isSidePanelVisible) {
-            rightPanelWidth = UIUtil.getSidePanelSize()[0];
-        }
 
         return window.innerWidth - rightPanelWidth;
     },
@@ -37,7 +20,8 @@
      * Changes the style class of the element given by id.
      */
     buttonClick: function(id, classname) {
-        $(id).toggleClass(classname); // add the class to the clicked element
+        // add the class to the clicked element
+        $("#" + id).toggleClass(classname);
     },
     /**
      * Returns the text width for the given element.
@@ -100,12 +84,59 @@
         context.putImageData(imgData, 0, 0);
     },
 
+    /**
+     * Sets the tooltip to the given element.
+     *
+     * @param element the element to set the tooltip to
+     * @param key the tooltip data-i18n key
+     * @param position the position of the tooltip in relation to the element
+     */
     setTooltip: function (element, key, position) {
-        element.setAttribute("data-i18n", "[data-content]" + key);
-        element.setAttribute("data-toggle", "popover");
-        element.setAttribute("data-placement", position);
-        element.setAttribute("data-html", true);
-        element.setAttribute("data-container", "body");
+        let positions = {
+            'top': 's',
+            'top-left': 'se',
+            'left': 'e',
+            'bottom-left': 'ne',
+            'bottom': 'n',
+            'bottom-right': 'nw',
+            'right': 'w',
+            'top-right': 'sw'
+        };
+
+        element.setAttribute("data-i18n", "[content]" + key);
+        APP.translation.translateElement($(element));
+
+        AJS.$(element).tooltip({
+            gravity: positions[position],
+            title: this._getTooltipText.bind(this, element),
+            html: true
+        });
+    },
+
+    /**
+     * Removes the tooltip to the given element.
+     *
+     * @param element the element to remove the tooltip from
+     */
+    removeTooltip: function (element) {
+        AJS.$(element).tooltip('destroy');
+    },
+
+    /**
+     * Internal util function for generating tooltip title.
+     *
+     * @param element
+     * @returns {string|*}
+     * @private
+     */
+    _getTooltipText: function (element) {
+        let title = element.getAttribute('content');
+        let shortcut = element.getAttribute('shortcut');
+        if(shortcut) {
+            let shortcutString = KeyboardShortcut.getShortcutTooltip(shortcut);
+            title += ` ${shortcutString}`;
+        }
+        return title;
     },
 
     /**
@@ -122,15 +153,58 @@
         }
     },
 
+    /**
+     * Indicates if a toolbar button is enabled.
+     * @param name the name of the setting section as defined in
+     * interface_config.js and Toolbar.js
+     * @returns {boolean} {true} to indicate that the given toolbar button
+     * is enabled, {false} - otherwise
+     */
     isButtonEnabled: function (name) {
-        return interfaceConfig.TOOLBAR_BUTTONS.indexOf(name) !== -1;
+        return interfaceConfig.TOOLBAR_BUTTONS.indexOf(name) !== -1
+                || interfaceConfig.MAIN_TOOLBAR_BUTTONS.indexOf(name) !== -1;
+    },
+    /**
+     * Indicates if the setting section is enabled.
+     *
+     * @param name the name of the setting section as defined in
+     * interface_config.js and SettingsMenu.js
+     * @returns {boolean} {true} to indicate that the given setting section
+     * is enabled, {false} - otherwise
+     */
+    isSettingEnabled: function (name) {
+        return interfaceConfig.SETTINGS_SECTIONS.indexOf(name) !== -1;
+    },
+
+    /**
+     * Shows the element given by id.
+     *
+     * @param {String} the identifier of the element to show
+     */
+    showElement(id) {
+        if ($("#"+id).hasClass("hide"))
+            $("#"+id).removeClass("hide");
+
+        $("#"+id).addClass("show");
+    },
+
+    /**
+     * Hides the element given by id.
+     *
+     * @param {String} the identifier of the element to hide
+     */
+    hideElement(id) {
+        if ($("#"+id).hasClass("show"))
+            $("#"+id).removeClass("show");
+
+        $("#"+id).addClass("hide");
     },
 
     hideDisabledButtons: function (mappings) {
         var selector = Object.keys(mappings)
           .map(function (buttonName) {
                 return UIUtil.isButtonEnabled(buttonName)
-                    ? null : mappings[buttonName]; })
+                    ? null : "#" + mappings[buttonName].id; })
           .filter(function (item) { return item; })
           .join(',');
         $(selector).hide();
@@ -138,7 +212,7 @@
 
     redirect (url) {
          window.location.href = url;
-     },
+    },
 
      isFullScreen () {
          return document.fullScreen
@@ -208,6 +282,23 @@
      */
     parseCssInt(cssValue) {
         return parseInt(cssValue) || 0;
+    },
+
+    /**
+     * Adds href value to 'a' link jquery object. If link value is null,
+     * undefined or empty string, disables the link.
+     * @param {object} aLinkElement the jquery object
+     * @param {string} link the link value
+     */
+    setLinkHref(aLinkElement, link) {
+        if (link) {
+            aLinkElement.attr('href', link);
+        } else {
+            aLinkElement.css({
+                "pointer-events": "none",
+                "cursor": "default"
+            });
+        }
     }
 };
 

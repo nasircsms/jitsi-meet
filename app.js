@@ -8,10 +8,14 @@ import "jquery-ui";
 import "strophe";
 import "strophe-disco";
 import "strophe-caps";
-import "tooltip";
-import "popover";
 import "jQuery-Impromptu";
 import "autosize";
+
+import 'aui';
+import 'aui-experimental';
+import 'aui-css';
+import 'aui-experimental-css';
+
 window.toastr = require("toastr");
 
 import URLProcessor from "./modules/config/URLProcessor";
@@ -95,9 +99,9 @@ const APP = {
 function setTokenData() {
     let localUser = APP.tokenData.caller;
     if(localUser) {
-        APP.settings.setEmail((localUser.getEmail() || "").trim());
+        APP.settings.setEmail((localUser.getEmail() || "").trim(), true);
         APP.settings.setAvatarUrl((localUser.getAvatarUrl() || "").trim());
-        APP.settings.setDisplayName((localUser.getName() || "").trim());
+        APP.settings.setDisplayName((localUser.getName() || "").trim(), true);
     }
 }
 

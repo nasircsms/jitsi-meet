@@ -8,14 +8,22 @@
 }
 
 #remoteVideos {
-    display:block;
+    display: -webkit-box;
+    display: -moz-box;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    display: flex;
+    flex-direction: row-reverse;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+
     position:absolute;
     text-align:right;
     height:196px;
-    padding: 18px;
+    padding: 10px 10px 10px 5px;
     bottom: 0;
     left: 0;
-    right: 20px;
+    right: 0;
     width:auto;
     border:1px solid transparent;
     z-index: 5;
@@ -30,19 +38,38 @@
 
 .videocontainer {
     position: relative;
-    margin-left: auto;
-    margin-right: auto;
     text-align: center;
 }
 
 #remoteVideos .videocontainer {
     display: none;
+    position: relative;
     background-color: black;
     background-size: contain;
     border-radius:1px;
-    border: 1px solid #212425;
+    margin: 0 $thumbnailVideoMargin;
+    border: 1px solid $defaultDarkColor;
 }
 
+/**
+ * The toolbar of the video thumbnail.
+ */
+.videocontainer__toolbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    width: 100%;
+    box-sizing: border-box; // Includes the padding in the 100% width.
+    height: $thumbnailToolbarHeight;
+    max-height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 0 5px 0 5px;
+}
+
+/**
+ * Focused video thumbnail.
+ */
 #remoteVideos .videocontainer.videoContainerFocused {
     cursor: hand;
     transition-duration: 0.5s;
@@ -50,20 +77,12 @@
     -webkit-animation-name: greyPulse;
     -webkit-animation-duration: 2s;
     -webkit-animation-iteration-count: 1;
+    border: 1px solid $videoThumbnailSelected;
 }
 
-#remoteVideos .videocontainer:hover {
-    border: 1px solid #c1c1c1;
-}
-
-#remoteVideos .videocontainer.videoContainerFocused {
-    box-shadow: inset 0 0 28px #006d91;
-    border: 1px solid #006d91;
-}
-
+#remoteVideos .videocontainer:hover,
 #remoteVideos .videocontainer.videoContainerFocused:hover {
-    box-shadow: inset 0 0 5px #c1c1c1, 0 0 10px #c1c1c1, inset 0 0 60px #006d91;
-    border: 1px solid #c1c1c1;
+    border: 1px solid $videoThumbnailHovered;
 }
 
 #localVideoWrapper {
@@ -107,7 +126,6 @@
     object-fit: cover;
 }
 
-#presentation,
 #sharedVideo,
 #etherpad,
 #localVideoWrapper>video,
@@ -126,8 +144,7 @@
     height: 100%;
 }
 
-#etherpad,
-#presentation {
+#etherpad {
     text-align: center;
 }
 
@@ -135,51 +152,36 @@
     z-index: 0;
 }
 
-#toolbar_button_etherpad {
-    display: none;
-}
-
-#remoteVideos .videocontainer>span.focusindicator,
-#remoteVideos .videocontainer>div.remotevideomenu {
-    position: absolute;
-    color: #FFFFFF;
-    top: 0;
-    left: 0;
-    padding: 5px 0px;
-    width: 25px;
-    font-size: 11pt;
-    text-shadow: 0px 1px 0px rgba(255,255,255,.3), 0px -1px 0px rgba(0,0,0,.7);
-    border: 0px;
-    z-index: 2;
-    text-align: center;
-}
-
-#remoteVideos .videocontainer>span.focusindicator {
+/**
+ * Positions video thumbnail display name and editor.
+ */
+.videocontainer .displayname,
+.videocontainer .editdisplayname {
     display: inline-block;
-}
-
-#remoteVideos .videocontainer>div.remotevideomenu {
-    display: block;
-}
-
-.videocontainer>span.displayname,
-.videocontainer>input.displayname {
-    display: none;
     position: absolute;
-    color: #FFFFFF;
-    background: rgba(0,0,0,.7);
+    left: 30%;
+    width: 40%;
+    color: $participantNameColor;
     text-align: center;
     text-overflow: ellipsis;
-    width: 70%;
-    height: 20%;
-    left: 15%;
-    top: 40%;
-    padding: 5px;
-    font-size: 11pt;
+    font-size: 12px;
+    font-weight: 100;
+    letter-spacing: 1px;
     overflow: hidden;
     white-space: nowrap;
+    line-height: $thumbnailToolbarHeight;
     z-index: 2;
-    border-radius:3px;
+}
+
+/**
+ * Positions video thumbnail display name editor.
+ */
+.videocontainer .editdisplayname {
+    outline: none;
+    border: none;
+    background: none;
+    box-shadow: none;
+    padding: 0;
 }
 
 .videocontainer>span.status {
@@ -255,16 +257,16 @@
 }
 
 #localVideoContainer>span.status:hover,
-#localVideoContainer>span.displayname:hover {
+#localVideoContainer .displayname:hover {
     cursor: text;
 }
 
 .videocontainer>span.status,
-.videocontainer>span.displayname {
+.videocontainer .displayname {
     pointer-events: none;
 }
 
-.videocontainer>input.displayname {
+.videocontainer .editdisplayname {
     height: auto;
 }
 
@@ -285,53 +287,63 @@
     z-index: 2;
 }
 
-.videocontainer>span.audioMuted {
-    display: inline-block;
-    position: absolute;
-    color: #FFFFFF;
-    top: 0;
-    padding: 8px 5px;
-    width: 25px;
+/**
+ * Video thumbnail toolbar icon.
+ */
+.videocontainer .toolbar-icon {
     font-size: 8pt;
-    text-shadow: 0px 1px 0px rgba(255,255,255,.3), 0px -1px 0px rgba(0,0,0,.7);
-    border: 0px;
-    z-index: 3;
     text-align: center;
+    text-shadow: 0px 1px 0px rgba(255,255,255,.3), 0px -1px 0px rgba(0,0,0,.7);
+    color: #FFFFFF;
+    width: 12px;
+    line-height: $thumbnailToolbarHeight;
+    height: $thumbnailToolbarHeight;
+    padding: 0;
+    border: 0;
+    margin: 0px 5px 0px 0px;
+    float: left;
 }
 
-.videocontainer>span.videoMuted {
-    display: inline-block;
-    position: absolute;
-    color: #FFFFFF;
-    top: 0;
-    right: 0;
-    padding: 8px 5px;
-    width: 25px;
-    font-size: 8pt;
-    text-shadow: 0px 1px 0px rgba(255,255,255,.3), 0px -1px 0px rgba(0,0,0,.7);
-    border: 0px;
-    z-index: 3;
+/**
+ * Toolbar icon internal i elements (font icons).
+ */
+.toolbar-icon>i {
+    line-height: $thumbnailToolbarHeight;
+}
+
+/**
+ * Toolbar icons positioned on the right.
+ */
+.toolbar-icon.right {
+  float: right;
+  margin: 0px 0px 0px 5px;
 }
 
 .videocontainer>span.indicator {
-    bottom: 0px;
+    position: absolute;
+    top: 0px;
     left: 0px;
-    width: 25px;
-    height: 25px;
+    @include circle($thumbnailIndicatorSize);
+    box-sizing: border-box;
+    line-height: $thumbnailIndicatorSize - 2*$thumbnailIndicatorBorder;
     z-index: 3;
     text-align: center;
-    border-radius: 50%;
-    background: #21B9FC;
-    margin: 5px;
+    background: $dominantSpeakerBg;
+    margin: 7px;
     display: inline-block;
-    position: absolute;
-    color: #FFFFFF;
-    font-size: 11pt;
-    border: 0px;
+    color: $thumbnailPictogramColor;
+    font-size: 8pt;
+    border: $thumbnailIndicatorBorder solid $thumbnailPictogramColor;
+}
+
+.videocontainer>#raisehandindicator {
+    background: $raiseHandBg;
 }
 
 #indicatoricon {
-    padding-top: 5px;
+    width: $thumbnailIndicatorSize - 2*$thumbnailIndicatorBorder;
+    height: $thumbnailIndicatorSize - 2*$thumbnailIndicatorBorder;
+    line-height: $thumbnailIndicatorSize - 2*$thumbnailIndicatorBorder;
 }
 
 #reloadPresentation {
@@ -349,33 +361,6 @@
     -webkit-border-radius: 5px;
     -webkit-background-clip: padding-box;
     z-index: 20; /*The reload button should appear on top of the header!*/
-}
-
-#header{
-    display:none;
-    position:absolute;
-    text-align:center;
-    top:0;
-    left:0;
-    right:0;
-    z-index:10;
-    pointer-events: none;
-    min-height: 100px;
-}
-
-#subject {
-    position: relative;
-    z-index: 3;
-    width: auto;
-    padding: 5px;
-    margin-left: 40%;
-    margin-right: 40%;
-    text-align: center;
-    background: linear-gradient(to bottom, rgba(255,255,255,.85) , rgba(255,255,255,.35));
-    box-shadow: 0 0 2px #000000, 0 0 10px #000000;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-    display: none;
 }
 
 .audiolevel {
@@ -420,10 +405,8 @@
 }
 
 .userAvatar {
-    height: 100%;
-    position: absolute;
-    left: 0;
-    border-radius: 2px;
+    @include circle(60px);
+    @include absoluteAligning(60px, 60px);
 }
 
 .sharedVideoAvatar {

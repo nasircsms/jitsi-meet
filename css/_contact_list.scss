@@ -1,0 +1,52 @@
+#contacts_container {
+    cursor: default;
+
+    > ul#contacts {
+        font-size: 12px;
+        bottom: 0px;
+        margin: 0px;
+        padding: 0px;
+        width: 100%;
+        overflow-y: scroll;
+        overflow-x: hidden;
+    }
+
+    .clickable {
+        cursor: pointer;
+    }
+}
+
+#contacts {
+
+    >li {
+        color: $defaultSideBarFontColor;
+        list-style-type: none;
+        text-align: left;
+        white-space: nowrap;
+        color: #FFF;
+        font-size: 10pt;
+        padding: 6px 10%;
+
+        &:hover,
+        &:active {
+            background: $toolbarSelectBackground;
+        }
+
+        > p {
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0px;
+        }
+    }
+}
+
+
+.avatar {
+    padding: 0px;
+    margin-right: 10px;
+    vertical-align: middle;
+    font-size: 22pt;
+    border-radius: 20px;
+    max-height: 30px;
+    max-width: 30px;
+}

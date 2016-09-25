@@ -13,13 +13,12 @@ function RemoteVideo(id, VideoLayout, emitter) {
     this.emitter = emitter;
     this.videoSpanId = `participant_${id}`;
     SmallVideo.call(this, VideoLayout);
+    this.hasRemoteVideoMenu = false;
     this.addRemoteVideoContainer();
     this.connectionIndicator = new ConnectionIndicator(this, id);
     this.setDisplayName();
-    this.bindHoverHandler();
     this.flipX = false;
     this.isLocal = false;
-    this.isMuted = false;
 }
 
 RemoteVideo.prototype = Object.create(SmallVideo.prototype);
@@ -33,8 +32,10 @@ RemoteVideo.prototype.addRemoteVideoContainer = function() {
     if (APP.conference.isModerator) {
         this.addRemoteVideoMenu();
     }
-    let {thumbWidth, thumbHeight} = this.VideoLayout.resizeThumbnails();
-    AudioLevels.updateAudioLevelCanvas(this.id, thumbWidth, thumbHeight);
+
+    let { remoteVideo } = this.VideoLayout.resizeThumbnails();
+    let { thumbHeight, thumbWidth } = remoteVideo;
+    AudioLevels.createAudioLevelCanvas(this.id, thumbWidth, thumbHeight);
 
     return this.container;
 };
@@ -49,7 +50,7 @@ RemoteVideo.prototype.addRemoteVideoContainer = function() {
  */
 RemoteVideo.prototype._initPopupMenu = function (popupMenuElement) {
     this.popover = new JitsiPopover(
-        $("#" + this.videoSpanId + " > .remotevideomenu"),
+        $("#" + this.videoSpanId + " .remotevideomenu"),
         {   content: popupMenuElement.outerHTML,
             skin: "black"});
 
@@ -59,7 +60,7 @@ RemoteVideo.prototype._initPopupMenu = function (popupMenuElement) {
     this.popover.show = function () {
         // update content by forcing it, to finish even if popover
         // is not visible
-        this.updateRemoteVideoMenu(this.isMuted, true);
+        this.updateRemoteVideoMenu(this.isAudioMuted, true);
         // call the original show, passing its actual this
         origShowFunc.call(this.popover);
     }.bind(this);
@@ -93,9 +94,9 @@ RemoteVideo.prototype._generatePopupContent = function () {
         APP.translation.translateString("videothumbnail.muted") +
         "</div>";
 
-    muteLinkItem.id = "muteLinkItem";
+    muteLinkItem.id = "mutelink_" + this.id;
 
-    if (this.isMuted) {
+    if (this.isAudioMuted) {
         muteLinkItem.innerHTML = mutedHTML;
         muteLinkItem.className = 'mutelink disabled';
     }
@@ -105,9 +106,9 @@ RemoteVideo.prototype._generatePopupContent = function () {
     }
 
     // Delegate event to the document.
-    $(document).on("click", ".mutelink", function(){
+    $(document).on("click", "#mutelink_" + this.id, function(){
 
-        if (this.isMuted)
+        if (this.isAudioMuted)
             return;
 
         this.emitter.emit(UIEvents.REMOTE_AUDIO_MUTED, this.id);
@@ -118,7 +119,7 @@ RemoteVideo.prototype._generatePopupContent = function () {
     muteMenuItem.appendChild(muteLinkItem);
     popupmenuElement.appendChild(muteMenuItem);
 
-    var ejectIndicator = "<i style='float:left;' class='fa fa-eject'></i>";
+    var ejectIndicator = "<i style='float:left;' class='icon-kick'></i>";
 
     var ejectMenuItem = document.createElement('li');
     var ejectLinkItem = document.createElement('a');
@@ -130,8 +131,9 @@ RemoteVideo.prototype._generatePopupContent = function () {
 
     ejectLinkItem.className = 'ejectlink';
     ejectLinkItem.innerHTML = ejectIndicator + ' ' + ejectText;
+    ejectLinkItem.id = "ejectlink_" + this.id;
 
-    $(document).on("click", ".ejectlink", function(){
+    $(document).on("click", "#ejectlink_" + this.id, function(){
         this.emitter.emit(UIEvents.USER_KICKED, this.id);
         this.popover.forceHide();
     }.bind(this));
@@ -150,7 +152,7 @@ RemoteVideo.prototype._generatePopupContent = function () {
  */
 RemoteVideo.prototype.updateRemoteVideoMenu = function (isMuted, force) {
 
-    this.isMuted = isMuted;
+    this.isAudioMuted = isMuted;
 
     // generate content, translate it and add it to document only if
     // popover is visible or we force to do so.
@@ -168,16 +170,21 @@ RemoteVideo.prototype.updateRemoteVideoMenu = function (isMuted, force) {
  */
 if (!interfaceConfig.filmStripOnly) {
     RemoteVideo.prototype.addRemoteVideoMenu = function () {
-        var spanElement = document.createElement('div');
-        spanElement.className = 'remotevideomenu';
-        this.container.appendChild(spanElement);
+
+        var spanElement = document.createElement('span');
+        spanElement.className = 'remotevideomenu toolbar-icon right';
+
+        this.container
+            .querySelector('.videocontainer__toolbar')
+            .appendChild(spanElement);
 
         var menuElement = document.createElement('i');
-        menuElement.className = 'fa fa-angle-down';
+        menuElement.className = 'icon-menu-up';
         menuElement.title = 'Remote user controls';
         spanElement.appendChild(menuElement);
 
         this._initPopupMenu(this._generatePopupContent());
+        this.hasRemoteVideoMenu = true;
     };
 
 } else {
@@ -378,7 +385,7 @@ RemoteVideo.prototype.setDisplayName = function(displayName, key) {
         return;
     }
 
-    var nameSpan = $('#' + this.videoSpanId + '>span.displayname');
+    var nameSpan = $('#' + this.videoSpanId + ' .displayname');
 
     // If we already have a display name for this video.
     if (nameSpan.length > 0) {
@@ -397,7 +404,9 @@ RemoteVideo.prototype.setDisplayName = function(displayName, key) {
     } else {
         nameSpan = document.createElement('span');
         nameSpan.className = 'displayname';
-        $('#' + this.videoSpanId)[0].appendChild(nameSpan);
+        $('#' + this.videoSpanId)[0]
+            .querySelector('.videocontainer__toolbar')
+            .appendChild(nameSpan);
 
         if (displayName && displayName.length > 0) {
             $(nameSpan).text(displayName);
@@ -415,20 +424,25 @@ RemoteVideo.prototype.setDisplayName = function(displayName, key) {
  * @param videoElementId the id of local or remote video element.
  */
 RemoteVideo.prototype.removeRemoteVideoMenu = function() {
-    var menuSpan = $('#' + this.videoSpanId + '>span.remotevideomenu');
+    var menuSpan = $('#' + this.videoSpanId + '> .remotevideomenu');
     if (menuSpan.length) {
         this.popover.forceHide();
         menuSpan.remove();
+        this.hasRemoteVideoMenu = false;
     }
 };
 
 RemoteVideo.createContainer = function (spanId) {
-    var container = document.createElement('span');
+    let container = document.createElement('span');
     container.id = spanId;
     container.className = 'videocontainer';
+
+    let toolbar = document.createElement('div');
+    toolbar.className = "videocontainer__toolbar";
+    container.appendChild(toolbar);
+
     var remotes = document.getElementById('remoteVideos');
     return remotes.appendChild(container);
 };
-
 
 export default RemoteVideo;

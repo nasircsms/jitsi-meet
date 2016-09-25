@@ -3,16 +3,15 @@
 
 import AudioLevels from "../audio_levels/AudioLevels";
 import Avatar from "../avatar/Avatar";
-import BottomToolbar from "../toolbars/BottomToolbar";
 import FilmStrip from "./FilmStrip";
 import UIEvents from "../../../service/UI/UIEvents";
 import UIUtil from "../util/UIUtil";
 
 import RemoteVideo from "./RemoteVideo";
-import LargeVideoManager, {VIDEO_CONTAINER_TYPE} from "./LargeVideo";
+import LargeVideoManager  from "./LargeVideoManager";
+import {VIDEO_CONTAINER_TYPE} from "./VideoContainer";
 import {SHARED_VIDEO_CONTAINER_TYPE} from '../shared_video/SharedVideo';
 import LocalVideo from "./LocalVideo";
-import PanelToggler from "../side_pannels/SidePanelToggler";
 
 const RTCUIUtil = JitsiMeetJS.util.RTCUIHelper;
 
@@ -104,21 +103,24 @@ var VideoLayout = {
             });
         localVideoThumbnail = new LocalVideo(VideoLayout, emitter);
         // sets default video type of local video
+        // FIXME container type is totally different thing from the video type
         localVideoThumbnail.setVideoType(VIDEO_CONTAINER_TYPE);
         // if we do not resize the thumbs here, if there is no video device
         // the local video thumb maybe one pixel
-        this.resizeThumbnails(false, true, false);
+        let { localVideo } = this.resizeThumbnails(false, true);
+        AudioLevels.createAudioLevelCanvas(
+            "local", localVideo.thumbWidth, localVideo.thumbHeight);
 
         emitter.addListener(UIEvents.CONTACT_CLICKED, onContactClicked);
         this.lastNCount = config.channelLastN;
     },
 
-    initLargeVideo (isSideBarVisible) {
-        largeVideo = new LargeVideoManager();
+    initLargeVideo () {
+        largeVideo = new LargeVideoManager(eventEmitter);
         if(localFlipX) {
             largeVideo.onLocalFlipXChange(localFlipX);
         }
-        largeVideo.updateContainerSize(isSideBarVisible);
+        largeVideo.updateContainerSize();
         AudioLevels.init();
     },
 
@@ -158,15 +160,8 @@ var VideoLayout = {
     },
 
     changeLocalVideo (stream) {
-        // Set default display name.
-        localVideoThumbnail.setDisplayName();
-        localVideoThumbnail.createConnectionIndicator();
-
         let localId = APP.conference.getMyUserId();
         this.onVideoTypeChanged(localId, stream.videoType);
-
-        let {thumbWidth, thumbHeight} = this.resizeThumbnails(false, true);
-        AudioLevels.updateAudioLevelCanvas(null, thumbWidth, thumbHeight);
 
         if (!stream.isMuted()) {
             localVideoThumbnail.changeVideo(stream);
@@ -262,7 +257,8 @@ var VideoLayout = {
     electLastVisibleVideo () {
         // pick the last visible video in the row
         // if nobody else is left, this picks the local video
-        let thumbs = FilmStrip.getThumbs(true).filter('[id!="mixedstream"]');
+        let remoteThumbs = FilmStrip.getThumbs(true).remoteThumbs;
+        let thumbs = remoteThumbs.filter('[id!="mixedstream"]');
 
         let lastVisible = thumbs.filter(':visible:last');
         if (lastVisible.length) {
@@ -276,7 +272,7 @@ var VideoLayout = {
         }
 
         console.info("Last visible video no longer exists");
-        thumbs = FilmStrip.getThumbs();
+        thumbs = FilmStrip.getThumbs().remoteThumbs;
         if (thumbs.length) {
             let id = getPeerContainerResourceId(thumbs[0]);
             if (remoteVideos[id]) {
@@ -403,13 +399,14 @@ var VideoLayout = {
         let videoType = VideoLayout.getRemoteVideoType(id);
         if (!videoType) {
             // make video type the default one (camera)
+            // FIXME container type is not a video type
             videoType = VIDEO_CONTAINER_TYPE;
         }
         remoteVideo.setVideoType(videoType);
 
         // In case this is not currently in the last n we don't show it.
         if (localLastNCount && localLastNCount > 0 &&
-            FilmStrip.getThumbs().length >= localLastNCount + 2) {
+            FilmStrip.getThumbs().remoteThumbs.length >= localLastNCount + 2) {
             remoteVideo.showPeerContainer('hide');
         } else {
             VideoLayout.resizeThumbnails(false, true);
@@ -421,7 +418,7 @@ var VideoLayout = {
         console.info(resourceJid + " video is now active", videoelem);
 
         VideoLayout.resizeThumbnails(
-            false, false, false, function() {$(videoelem).show();});
+            false, false, function() {$(videoelem).show();});
 
         // Update the large video to the last added video only if there's no
         // current dominant, focused speaker or update it to
@@ -468,11 +465,12 @@ var VideoLayout = {
                 return;
 
             if (member.isModerator()) {
-                remoteVideo.removeRemoteVideoMenu();
                 remoteVideo.createModeratorIndicatorElement();
-            } else if (isModerator) {
+            }
+
+            if (isModerator) {
                 // We are moderator, but user is not - add menu
-                if ($(`#remote_popupmenu_${id}`).length <= 0) {
+                if(!remoteVideo.hasRemoteVideoMenu) {
                     remoteVideo.addRemoteVideoMenu();
                 }
             }
@@ -492,26 +490,21 @@ var VideoLayout = {
      */
     resizeThumbnails (  animate = false,
                         forceUpdate = false,
-                        isSideBarVisible = null,
                         onComplete = null) {
-        isSideBarVisible
-            = (isSideBarVisible !== null)
-                ? isSideBarVisible : PanelToggler.isVisible();
 
-        let {thumbWidth, thumbHeight}
-            = FilmStrip.calculateThumbnailSize(isSideBarVisible);
+        let { localVideo, remoteVideo }
+            = FilmStrip.calculateThumbnailSize();
 
-        $('.userAvatar').css('left', (thumbWidth - thumbHeight) / 2);
+        let {thumbWidth, thumbHeight} = remoteVideo;
 
-        FilmStrip.resizeThumbnails(thumbWidth, thumbHeight,
+        FilmStrip.resizeThumbnails(localVideo, remoteVideo,
             animate, forceUpdate)
             .then(function () {
-                BottomToolbar.resizeToolbar(thumbWidth, thumbHeight);
-                AudioLevels.updateCanvasSize(thumbWidth, thumbHeight);
+                AudioLevels.updateCanvasSize(localVideo, remoteVideo);
                 if (onComplete && typeof onComplete === "function")
                     onComplete();
-        });
-        return {thumbWidth, thumbHeight};
+            });
+        return { localVideo, remoteVideo };
     },
 
     /**
@@ -669,7 +662,7 @@ var VideoLayout = {
         var updateLargeVideo = false;
 
         // Handle LastN/local LastN changes.
-        FilmStrip.getThumbs().each(( index, element ) => {
+        FilmStrip.getThumbs().remoteThumbs.each(( index, element ) => {
             var resourceJid = getPeerContainerResourceId(element);
             var smallVideo = remoteVideos[resourceJid];
 
@@ -896,31 +889,29 @@ var VideoLayout = {
     /**
      * Resizes the video area.
      *
-     * @param isSideBarVisible indicates if the side bar is currently visible
      * @param forceUpdate indicates that hidden thumbnails will be shown
      * @param completeFunction a function to be called when the video area is
      * resized.
      */
-    resizeVideoArea (isSideBarVisible,
-                    forceUpdate = false,
+    resizeVideoArea (forceUpdate = false,
                     animate = false,
                     completeFunction = null) {
 
         if (largeVideo) {
-            largeVideo.updateContainerSize(isSideBarVisible);
+            largeVideo.updateContainerSize();
             largeVideo.resize(animate);
         }
 
         // Calculate available width and height.
         let availableHeight = window.innerHeight;
-        let availableWidth = UIUtil.getAvailableVideoWidth(isSideBarVisible);
+        let availableWidth = UIUtil.getAvailableVideoWidth();
 
         if (availableWidth < 0 || availableHeight < 0) {
             return;
         }
 
         // Resize the thumbnails first.
-        this.resizeThumbnails(false, forceUpdate, isSideBarVisible);
+        this.resizeThumbnails(false, forceUpdate);
 
         // Resize the video area element.
         $('#videospace').animate({
@@ -1009,6 +1000,7 @@ var VideoLayout = {
 
         if (!isOnLarge || forceUpdate) {
             let videoType = this.getRemoteVideoType(id);
+            // FIXME video type is not the same thing as container type
             if (id !== currentId && videoType === VIDEO_CONTAINER_TYPE) {
                 eventEmitter.emit(UIEvents.SELECTED_ENDPOINT, id);
             }

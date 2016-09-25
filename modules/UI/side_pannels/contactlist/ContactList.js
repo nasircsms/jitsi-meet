@@ -1,4 +1,4 @@
-/* global $, APP */
+/* global $, APP, interfaceConfig */
 import Avatar from '../../avatar/Avatar';
 import UIEvents from '../../../../service/UI/UIEvents';
 import UIUtil from '../../util/UIUtil';
@@ -14,16 +14,17 @@ let notificationInterval;
  */
 function updateNumberOfParticipants(delta) {
     numberOfContacts += delta;
-    if (numberOfContacts === 1) {
-        // when the user is alone we don't show the number of participants
-        $("#numberOfParticipants").text('');
-        ContactList.setVisualNotification(false);
-    } else if (numberOfContacts > 1) {
-        ContactList.setVisualNotification(!ContactList.isVisible());
-        $("#numberOfParticipants").text(numberOfContacts);
-    } else {
+
+    if (numberOfContacts <= 0) {
         console.error("Invalid number of participants: " + numberOfContacts);
+        return;
     }
+
+    $("#numberOfParticipants").text(numberOfContacts);
+
+    $("#contacts_container>div.title").text(
+        APP.translation.translateString("contactlist")
+            + ' (' + numberOfContacts + ')');
 }
 
 /**
@@ -93,9 +94,9 @@ var ContactList = {
 
     /**
      * Adds a contact for the given id.
-     *
+     * @param isLocal is an id for the local user.
      */
-    addContact (id) {
+    addContact (id, isLocal) {
         let contactlist = $('#contacts');
 
         let newContact = document.createElement('li');
@@ -107,8 +108,13 @@ var ContactList = {
             }
         };
 
-        newContact.appendChild(createAvatar(id));
-        newContact.appendChild(createDisplayNameParagraph("participant"));
+        if (interfaceConfig.SHOW_CONTACTLIST_AVATARS)
+            newContact.appendChild(createAvatar(id));
+
+        newContact.appendChild(
+            createDisplayNameParagraph(
+                isLocal ? interfaceConfig.DEFAULT_LOCAL_DISPLAY_NAME : null,
+                isLocal ? null : interfaceConfig.DEFAULT_REMOTE_DISPLAY_NAME));
 
         if (APP.conference.isLocalId(id)) {
             contactlist.prepend(newContact);
@@ -128,23 +134,6 @@ var ContactList = {
         if (contact.length > 0) {
             contact.remove();
             updateNumberOfParticipants(-1);
-        }
-    },
-
-    setVisualNotification (show, stopGlowingIn) {
-        let glower = $('#contactListButton');
-
-        if (show && !notificationInterval) {
-            notificationInterval = window.setInterval(function () {
-                glower.toggleClass('active glowing');
-            }, 800);
-        } else if (!show && notificationInterval) {
-            stopGlowing(glower);
-        }
-        if (stopGlowingIn) {
-            setTimeout(function () {
-                stopGlowing(glower);
-            }, stopGlowingIn);
         }
     },
 

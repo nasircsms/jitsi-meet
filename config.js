@@ -58,6 +58,8 @@ var config = {
     //disableAdaptiveSimulcast: false,
     enableRecording: false,
     enableWelcomePage: true,
+    //enableClosePage: false, // enabling the close page will ignore the welcome
+                              // page redirection when call is hangup
     disableSimulcast: false,
     logStats: false, // Enable logging of PeerConnection stats via the focus
 //    requireDisplayName: true, // Forces the participants that doesn't have display name to enter it when they enter the room.
@@ -71,5 +73,9 @@ var config = {
     'During that time service will not be available. ' +
     'Apologise for inconvenience.',*/
     disableThirdPartyRequests: false,
-    minHDHeight: 540
+    minHDHeight: 540,
+    // If true - all users without token will be considered guests and all users
+    // with token will be considered non-guests. Only guests will be allowed to
+    // edit their profile.
+    enableUserRolesBasedOnToken: false
 };

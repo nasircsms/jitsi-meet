@@ -16,6 +16,8 @@ import mediaDeviceHelper from './modules/devices/mediaDeviceHelper';
 
 import {reportError} from './modules/util/helpers';
 
+import UIErrors from './modules/UI/UIErrors';
+
 const ConnectionEvents = JitsiMeetJS.events.connection;
 const ConnectionErrors = JitsiMeetJS.errors.connection;
 
@@ -37,7 +39,7 @@ let connectionIsInterrupted = false;
  */
 let DSExternalInstallationInProgress = false;
 
-import {VIDEO_CONTAINER_TYPE} from "./modules/UI/videolayout/LargeVideo";
+import {VIDEO_CONTAINER_TYPE} from "./modules/UI/videolayout/VideoContainer";
 
 /**
  * Known custom conference commands.
@@ -46,6 +48,7 @@ const commands = {
     CONNECTION_QUALITY: "stats",
     EMAIL: "email",
     AVATAR_URL: "avatar-url",
+    AVATAR_ID: "avatar-id",
     ETHERPAD: "etherpad",
     SHARED_VIDEO: "shared-video",
     CUSTOM_ROLE: "custom-role"
@@ -199,8 +202,28 @@ function muteLocalVideo (muted) {
 
 /**
  * Check if the welcome page is enabled and redirects to it.
+ * If requested show a thank you dialog before that.
+ * If we have a close page enabled, redirect to it without
+ * showing any other dialog.
+ * @param {boolean} showThankYou whether we should show a thank you dialog
  */
-function maybeRedirectToWelcomePage() {
+function maybeRedirectToWelcomePage(showThankYou) {
+
+    // if close page is enabled redirect to it, without further action
+    if (config.enableClosePage) {
+        window.location.pathname = "close.html";
+        return;
+    }
+
+    if (showThankYou) {
+        APP.UI.messageHandler.openMessageDialog(
+            null, null, null,
+            APP.translation.translateString(
+                "dialog.thankYou", {appName:interfaceConfig.APP_NAME}
+            )
+        );
+    }
+
     if (!config.enableWelcomePage) {
         return;
     }
@@ -233,15 +256,28 @@ function disconnectAndShowFeedback(requestFeedback) {
  */
 function hangup (requestFeedback = false) {
     const errCallback = (f, err) => {
-        console.error('Error occurred during hanging up: ', err);
-        return f();
+
+        // If we want to break out the chain in our error handler, it needs
+        // to return a rejected promise. In the case of feedback request
+        // in progress it's important to not redirect to the welcome page
+        // (see below maybeRedirectToWelcomePage call).
+        if (err === UIErrors.FEEDBACK_REQUEST_IN_PROGRESS) {
+            return Promise.reject('Feedback request in progress.');
+        }
+        else {
+            console.error('Error occurred during hanging up: ', err);
+            return Promise.resolve();
+        }
     };
     const disconnect = disconnectAndShowFeedback.bind(null, requestFeedback);
     APP.conference._room.leave()
     .then(disconnect)
     .catch(errCallback.bind(null, disconnect))
     .then(maybeRedirectToWelcomePage)
-    .catch(errCallback.bind(null, maybeRedirectToWelcomePage));
+    .catch(function(err){
+            console.log(err);
+        });
+
 }
 
 /**
@@ -277,8 +313,13 @@ function createLocalTracks (options, checkForPermissionPrompt) {
             firefox_fake_device: config.firefox_fake_device,
             desktopSharingExtensionExternalInstallation:
                 options.desktopSharingExtensionExternalInstallation
-        }, checkForPermissionPrompt)
-        .catch(function (err) {
+        }, checkForPermissionPrompt).then( (tracks) => {
+            tracks.forEach((track) => {
+                track.on(TrackEvents.NO_DATA_FROM_SOURCE,
+                    APP.UI.showTrackNotWorkingDialog.bind(null, track));
+            });
+            return tracks;
+        }).catch(function (err) {
             console.error(
                 'failed to create local tracks', options.devices, err);
             return Promise.reject(err);
@@ -299,23 +340,6 @@ function changeLocalEmail(email = '') {
     APP.settings.setEmail(email);
     APP.UI.setUserEmail(room.myUserId(), email);
     sendData(commands.EMAIL, email);
-}
-
-
-/**
- * Changes the local avatar url for the local user
- * @param avatarUrl {string} the new avatar url
- */
-function changeLocalAvatarUrl(avatarUrl = '') {
-    avatarUrl = avatarUrl.trim();
-
-    if (avatarUrl === APP.settings.getAvatarUrl()) {
-        return;
-    }
-
-    APP.settings.setAvatarUrl(avatarUrl);
-    APP.UI.setUserAvatarUrl(room.myUserId(), avatarUrl);
-    sendData(commands.AVATAR_URL, avatarUrl);
 }
 
 /**
@@ -358,6 +382,14 @@ class ConferenceConnector {
         case ConferenceErrors.PASSWORD_REQUIRED:
             APP.UI.markRoomLocked(true);
             roomLocker.requirePassword().then(function () {
+                let pass = roomLocker.password;
+                // we received that password is required, but user is trying
+                // anyway to login without a password, mark room as not locked
+                // in case he succeeds (maybe someone removed the password
+                // meanwhile), if it is still locked another password required
+                // will be received and the room again will be marked as locked
+                if (!pass)
+                    APP.UI.markRoomLocked(false);
                 room.join(roomLocker.password);
             });
             break;
@@ -700,6 +732,30 @@ export default {
     },
 
     /**
+     * Download logs, a function that can be called from console while
+     * debugging.
+     * @param filename (optional) specify target filename
+     */
+    saveLogs (filename = 'meetlog.json') {
+        // this can be called from console and will not have reference to this
+        // that's why we reference the global var
+        let logs = APP.conference.getLogs();
+        let data = encodeURIComponent(JSON.stringify(logs, null, '  '));
+
+        let elem = document.createElement('a');
+
+        elem.download = filename;
+        elem.href = 'data:application/json;charset=utf-8,\n' + data;
+        elem.dataset.downloadurl
+            = ['text/json', elem.download, elem.href].join(':');
+        elem.dispatchEvent(new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: false
+        }));
+    },
+
+    /**
      * Exposes a Command(s) API on this instance. It is necessitated by (1) the
      * desire to keep room private to this instance and (2) the need of other
      * modules to send and receive commands to and from participants.
@@ -760,6 +816,8 @@ export default {
         let avatarUrl = APP.settings.getAvatarUrl();
         avatarUrl && sendData(this.commands.defaults.AVATAR_URL,
             avatarUrl);
+        !email && sendData(
+             this.commands.defaults.AVATAR_ID, APP.settings.getAvatarId());
 
         let nick = APP.settings.getDisplayName();
         if (config.useNicks && !nick) {
@@ -894,10 +952,21 @@ export default {
                     checkAgain: () => {
                         return DSExternalInstallationInProgress;
                     },
-                    listener: (url) => {
-                        DSExternalInstallationInProgress = true;
-                        externalInstallation = true;
-                        APP.UI.showExtensionExternalInstallationDialog(url);
+                    listener: (status, url) => {
+                        switch(status) {
+                            case "waitingForExtension":
+                                DSExternalInstallationInProgress = true;
+                                externalInstallation = true;
+                                APP.UI.showExtensionExternalInstallationDialog(
+                                    url);
+                                break;
+                            case "extensionFound":
+                                if(externalInstallation) //close the dialog
+                                    $.prompt.close();
+                                break;
+                            default:
+                                //Unknown status
+                        }
                     }
                 }
             }).then(([stream]) => {
@@ -924,6 +993,9 @@ export default {
                     'conference.sharingDesktop.start');
                 console.log('sharing local desktop');
             }).catch((err) => {
+                // close external installation dialog to show the error.
+                if(externalInstallation)
+                    $.prompt.close();
                 this.videoSwitchInProgress = false;
                 this.toggleScreenSharing(false);
 
@@ -1146,6 +1218,13 @@ export default {
             APP.UI.updateRecordingState(status);
         });
 
+        room.on(ConferenceEvents.LOCK_STATE_CHANGED, (state, error) => {
+            console.log("Received channel password lock change: ", state,
+                error);
+            APP.UI.markRoomLocked(state);
+            roomLocker.lockedElsewhere = state;
+        });
+
         room.on(ConferenceEvents.USER_STATUS_CHANGED, function (id, status) {
             APP.UI.updateUserStatus(id, status);
         });
@@ -1240,12 +1319,15 @@ export default {
             APP.UI.setUserEmail(from, data.value);
         });
 
-        APP.UI.addListener(UIEvents.AVATAR_URL_CHANGED, changeLocalAvatarUrl);
-
         room.addCommandListener(this.commands.defaults.AVATAR_URL,
         (data, from) => {
             APP.UI.setUserAvatarUrl(from, data.value);
         });
+
+        room.addCommandListener(this.commands.defaults.AVATAR_ID,
+            (data, from) => {
+                APP.UI.setUserAvatarID(from, data.value);
+            });
 
         APP.UI.addListener(UIEvents.NICKNAME_CHANGED, changeLocalDisplayName);
 
@@ -1266,15 +1348,6 @@ export default {
         room.on(ConferenceEvents.STARTED_MUTED, () => {
             (room.isStartAudioMuted() || room.isStartVideoMuted())
                 && APP.UI.notifyInitiallyMuted();
-        });
-
-        APP.UI.addListener(UIEvents.USER_INVITED, (roomUrl) => {
-            APP.UI.inviteParticipants(
-                roomUrl,
-                APP.conference.roomName,
-                roomLocker.password,
-                APP.settings.getDisplayName()
-            );
         });
 
         room.on(
@@ -1348,6 +1421,12 @@ export default {
 
         APP.UI.addListener(UIEvents.SELECTED_ENDPOINT, (id) => {
             try {
+                // do not try to select participant if there is none (we are
+                // alone in the room), otherwise an error will be thrown cause
+                // reporting mechanism is not available (datachannels currently)
+                if (room.getParticipants().length === 0)
+                    return;
+
                 room.selectParticipant(id);
             } catch (e) {
                 JitsiMeetJS.analytics.sendEvent('selectParticipant.failed');
@@ -1357,6 +1436,8 @@ export default {
 
         APP.UI.addListener(UIEvents.PINNED_ENDPOINT, (smallVideo, isPinned) => {
             var smallVideoId = smallVideo.getId();
+            // FIXME why VIDEO_CONTAINER_TYPE instead of checking if
+            // the participant is on the large video ?
             if (smallVideo.getVideoType() === VIDEO_CONTAINER_TYPE
                 && !APP.conference.isLocalId(smallVideoId)) {
 
@@ -1384,7 +1465,7 @@ export default {
                 .then(([stream]) => {
                     this.useVideoStream(stream);
                     console.log('switched local video device');
-                    APP.settings.setCameraDeviceId(cameraDeviceId);
+                    APP.settings.setCameraDeviceId(cameraDeviceId, true);
                 })
                 .catch((err) => {
                     APP.UI.showDeviceErrorDialog(null, err);
@@ -1406,7 +1487,7 @@ export default {
                 .then(([stream]) => {
                     this.useAudioStream(stream);
                     console.log('switched local audio device');
-                    APP.settings.setMicDeviceId(micDeviceId);
+                    APP.settings.setMicDeviceId(micDeviceId, true);
                 })
                 .catch((err) => {
                     APP.UI.showDeviceErrorDialog(err, null);
@@ -1501,13 +1582,13 @@ export default {
                 // storage and settings menu. This is a workaround until
                 // getConstraints() method will be implemented in browsers.
                 if (localAudio) {
-                    localAudio._setRealDeviceIdFromDeviceList(devices);
-                    APP.settings.setMicDeviceId(localAudio.getDeviceId());
+                    APP.settings.setMicDeviceId(
+                        localAudio.getDeviceId(), false);
                 }
 
                 if (localVideo) {
-                    localVideo._setRealDeviceIdFromDeviceList(devices);
-                    APP.settings.setCameraDeviceId(localVideo.getDeviceId());
+                    APP.settings.setCameraDeviceId(
+                        localVideo.getDeviceId(), false);
                 }
 
                 mediaDeviceHelper.setCurrentMediaDevices(devices);
@@ -1608,6 +1689,8 @@ export default {
     setRaisedHand(raisedHand) {
         if (raisedHand !== this.isHandRaised)
         {
+            APP.UI.onLocalRaiseHandChanged(raisedHand);
+
             this.isHandRaised = raisedHand;
             // Advertise the updated status
             room.setLocalParticipantProperty("raisedHand", raisedHand);

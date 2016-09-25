@@ -1,0 +1,109 @@
+@-webkit-keyframes shake-rotate {
+    0% {
+        -webkit-transform:scale(1) rotate(0deg);
+        transform:scale(1) rotate(0deg)
+    }
+
+    50% {
+        -webkit-transform:scale(.8) rotate(-5deg);
+        transform:scale(.8) rotate(-5deg)
+    }
+
+    to {
+        -webkit-transform:scale(1) rotate(3deg);
+        transform:scale(1) rotate(3deg)
+    }
+}
+
+@keyframes shake-rotate {
+    0% {
+        -webkit-transform:scale(1) rotate(0deg);
+        transform:scale(1) rotate(0deg)
+    }
+
+    50% {
+        -webkit-transform:scale(.8) rotate(-5deg);
+        transform:scale(.8) rotate(-5deg)
+    }
+
+    to {
+        -webkit-transform:scale(1) rotate(3deg);
+        transform:scale(1) rotate(3deg)
+    }
+}
+
+.shake-rotate {
+    display: inline-block;
+
+    -webkit-animation-duration: .4s;
+    animation-duration: .4s;
+    -webkit-animation-iteration-count: infinite;
+    animation-iteration-count: infinite;
+    -webkit-animation-name: shake-rotate;
+    animation-name: shake-rotate;
+    -webkit-animation-timing-function: ease-in-out;
+    animation-timing-function: ease-in-out
+}
+
+.feedback {
+    h2 {
+        font-weight: 400;
+        font-size: 24px;
+        line-height: 1.2;
+    }
+    p {
+        font-weight: 400;
+        font-size: 14px;
+    }
+
+    &__content {
+        text-align: center;
+    }
+    &__footer {
+
+        &:hover {
+            color: #287ade;
+            outline: 0;
+        }
+    }
+    &__rating {
+        line-height: 1.2;
+        padding: 20px 0;
+
+        p {
+            margin: 10px 0 0;
+        }
+
+        .star-label {
+            font-size: 16px;
+            color: $rateStarLabelColor;
+        }
+
+        .star-btn {
+            color: $rateStarDefault;
+            font-size: 36px;
+            position: relative;
+            cursor: pointer;
+            outline: none;
+            text-decoration: none;
+            @include transition(all .2s ease);
+
+            &.starHover,
+            &.active,
+            &:hover {
+                color: $rateStarActivity;
+                > i:before {
+                    content: "\e90a";
+                }
+            };
+
+        }
+    }
+    &__details {
+        text-align: left;
+        textarea {
+            min-height: 100px;
+            width: 100%;
+        }
+    }
+}
