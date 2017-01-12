@@ -3,7 +3,6 @@
 import UIUtil from '../util/UIUtil';
 import Toolbar from './Toolbar';
 import SideContainerToggler from "../side_pannels/SideContainerToggler";
-import FilmStrip from '../videolayout/FilmStrip.js';
 
 let toolbarTimeoutObject;
 let toolbarTimeout = interfaceConfig.INITIAL_TOOLBAR_TIMEOUT;
@@ -27,7 +26,7 @@ function showDesktopSharingButton() {
  * @param force {true} to force the hiding of the toolbar without caring about
  * the extended toolbar side panels.
  */
-function hideToolbar(force) {
+function hideToolbar(force) { // eslint-disable-line no-unused-vars
     if (alwaysVisibleToolbar) {
         return;
     }
@@ -35,9 +34,10 @@ function hideToolbar(force) {
     clearTimeout(toolbarTimeoutObject);
     toolbarTimeoutObject = null;
 
-    if (Toolbar.isHovered()
-            || APP.UI.isRingOverlayVisible()
-            || SideContainerToggler.isVisible()) {
+    if (force !== true &&
+            (Toolbar.isHovered()
+                || APP.UI.isRingOverlayVisible()
+                || SideContainerToggler.isVisible())) {
         toolbarTimeoutObject = setTimeout(hideToolbar, toolbarTimeout);
     } else {
         Toolbar.hide();
@@ -89,8 +89,9 @@ const ToolbarToggler = {
 
     /**
      * Shows the main toolbar.
+     * @param timeout (optional) to specify custom timeout value
      */
-    showToolbar () {
+    showToolbar (timeout) {
         if (interfaceConfig.filmStripOnly) {
             return;
         }
@@ -107,7 +108,8 @@ const ToolbarToggler = {
                 clearTimeout(toolbarTimeoutObject);
                 toolbarTimeoutObject = null;
             }
-            toolbarTimeoutObject = setTimeout(hideToolbar, toolbarTimeout);
+            toolbarTimeoutObject
+                = setTimeout(hideToolbar, timeout || toolbarTimeout);
             toolbarTimeout = interfaceConfig.TOOLBAR_TIMEOUT;
         }
 

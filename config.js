@@ -1,5 +1,6 @@
-/* jshint -W101 */
-var config = {
+/* jshint maxlen:false */
+
+var config = { // eslint-disable-line no-unused-vars
 //    configLocation: './config.json', // see ./modules/HttpConfigFetch.js
     hosts: {
         domain: 'meet.jit.si',
@@ -27,7 +28,7 @@ var config = {
     desktopSharingChromeExtId: 'diibjkoicjeejcmhdnailmkgecihlobk',
     // The media sources to use when using screen sharing with the Chrome
     // extension.
-    desktopSharingChromeSources: ['screen', 'window'],
+    desktopSharingChromeSources: ['screen', 'window', 'tab'],
     // Required version of Chrome extension
     desktopSharingChromeMinExtVersion: '0.1',
 
@@ -77,5 +78,7 @@ var config = {
     // If true - all users without token will be considered guests and all users
     // with token will be considered non-guests. Only guests will be allowed to
     // edit their profile.
-    enableUserRolesBasedOnToken: false
+    enableUserRolesBasedOnToken: false,
+    // Suspending video might cause problems with audio playback. Disabling until these are fixed.
+    disableSuspendVideo: true
 };

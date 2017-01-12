@@ -32,6 +32,10 @@ function getStreamOwnerId(stream) {
  * ratio and fits available area with it's larger dimension. This method
  * ensures that whole video will be visible and can leave empty areas.
  *
+ * @param videoWidth the width of the video to position
+ * @param videoHeight the height of the video to position
+ * @param videoSpaceWidth the width of the available space
+ * @param videoSpaceHeight the height of the available space
  * @return an array with 2 elements, the video width and the video height
  */
 function getDesktopVideoSize(videoWidth,
@@ -139,11 +143,7 @@ function getCameraVideoPosition(videoWidth,
  * @return an array with 2 elements, the horizontal indent and the vertical
  * indent
  */
-function getDesktopVideoPosition(videoWidth,
-                                 videoHeight,
-                                 videoSpaceWidth,
-                                 videoSpaceHeight) {
-
+function getDesktopVideoPosition(videoWidth, videoHeight, videoSpaceWidth) {
     let horizontalIndent = (videoSpaceWidth - videoWidth) / 2;
 
     let verticalIndent = 0;// Top aligned
@@ -173,15 +173,52 @@ export class VideoContainer extends LargeContainer {
 
         this.isVisible = false;
 
+        /**
+         * Flag indicates whether or not the avatar is currently displayed.
+         * @type {boolean}
+         */
+        this.avatarDisplayed = false;
         this.$avatar = $('#dominantSpeaker');
+
+        /**
+         * A jQuery selector of the remote connection message.
+         * @type {jQuery|HTMLElement}
+         */
+        this.$remoteConnectionMessage = $('#remoteConnectionMessage');
+
+        /**
+         * Indicates whether or not the video stream attached to the video
+         * element has started(which means that there is any image rendered
+         * even if the video is stalled).
+         * @type {boolean}
+         */
+        this.wasVideoRendered = false;
+
         this.$wrapper = $('#largeVideoWrapper');
 
         this.avatarHeight = $("#dominantSpeakerAvatar").height();
 
+        var onPlayCallback = function (event) {
+            if (typeof onPlay === 'function') {
+                onPlay(event);
+            }
+            this.wasVideoRendered = true;
+        }.bind(this);
         // This does not work with Temasys plugin - has to be a property to be
         // copied between new <object> elements
         //this.$video.on('play', onPlay);
-        this.$video[0].onplay = onPlay;
+        this.$video[0].onplay = onPlayCallback;
+    }
+
+    /**
+     * Enables a filter on the video which indicates that there are some
+     * problems with the local media connection.
+     *
+     * @param {boolean} enable <tt>true</tt> if the filter is to be enabled or
+     * <tt>false</tt> otherwise.
+     */
+    enableLocalConnectionProblemFilter (enable) {
+        this.$video.toggleClass("videoProblemFilter", enable);
     }
 
     /**
@@ -240,6 +277,30 @@ export class VideoContainer extends LargeContainer {
         }
     }
 
+    /**
+     * Update position of the remote connection message which describes that
+     * the remote user is having connectivity issues.
+     */
+    positionRemoteConnectionMessage () {
+
+        if (this.avatarDisplayed) {
+            let $avatarImage = $("#dominantSpeakerAvatar");
+            this.$remoteConnectionMessage.css(
+                'top',
+                $avatarImage.offset().top + $avatarImage.height() + 10);
+        } else {
+            let height = this.$remoteConnectionMessage.height();
+            let parentHeight = this.$remoteConnectionMessage.parent().height();
+            this.$remoteConnectionMessage.css(
+                'top', (parentHeight/2) - (height/2));
+        }
+
+        let width = this.$remoteConnectionMessage.width();
+        let parentWidth = this.$remoteConnectionMessage.parent().width();
+        this.$remoteConnectionMessage.css(
+            'left', ((parentWidth/2) - (width/2)));
+    }
+
     resize (containerWidth, containerHeight, animate = false) {
         let [width, height]
             = this.getVideoSize(containerWidth, containerHeight);
@@ -251,6 +312,8 @@ export class VideoContainer extends LargeContainer {
         let top = containerHeight / 2 - this.avatarHeight / 4 * 3;
 
         this.$avatar.css('top', top);
+
+        this.positionRemoteConnectionMessage();
 
         this.$wrapper.animate({
             width: width,
@@ -273,6 +336,14 @@ export class VideoContainer extends LargeContainer {
      * @param {string} videoType video type
      */
     setStream (stream, videoType) {
+
+        if (this.stream === stream) {
+            return;
+        } else {
+            // The stream has changed, so the image will be lost on detach
+            this.wasVideoRendered = false;
+        }
+
         // detach old stream
         if (this.stream) {
             this.stream.detach(this.$video[0]);
@@ -328,8 +399,21 @@ export class VideoContainer extends LargeContainer {
             (show) ? interfaceConfig.DEFAULT_BACKGROUND : "#000");
 
         this.$avatar.css("visibility", show ? "visible" : "hidden");
+        this.avatarDisplayed = show;
 
-        this.emitter.emit(UIEvents.LARGE_VIDEO_AVATAR_DISPLAYED, show);
+        this.emitter.emit(UIEvents.LARGE_VIDEO_AVATAR_VISIBLE, show);
+    }
+
+    /**
+     * Indicates that the remote user who is currently displayed by this video
+     * container is having connectivity issues.
+     *
+     * @param {boolean} show <tt>true</tt> to show or <tt>false</tt> to hide
+     * the indication.
+     */
+    showRemoteConnectionProblemIndicator (show) {
+        this.$video.toggleClass("remoteVideoProblemFilter", show);
+        this.$avatar.toggleClass("remoteVideoProblemFilter", show);
     }
 
     // We are doing fadeOut/fadeIn animations on parent div which wraps
@@ -344,7 +428,6 @@ export class VideoContainer extends LargeContainer {
             return Promise.resolve();
         }
 
-        let $wrapper = this.$wrapper;
         return new Promise((resolve) => {
             this.$wrapper.css('visibility', 'visible').fadeTo(
                 FADE_DURATION_MS,
