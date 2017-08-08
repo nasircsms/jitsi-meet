@@ -4,7 +4,8 @@ import { appNavigate } from '../../app';
 import { isRoomValid } from '../../base/conference';
 import { VideoTrack } from '../../base/media';
 import { getLocalVideoTrack } from '../../base/tracks';
-import { generateRoomWithoutSeparator } from '../../base/util';
+
+import { generateRoomWithoutSeparator } from '../roomnameGenerator';
 
 /**
  * Base (abstract) class for container component rendering the welcome page.
@@ -13,21 +14,21 @@ import { generateRoomWithoutSeparator } from '../../base/util';
  */
 export class AbstractWelcomePage extends Component {
     /**
-     * AbstractWelcomePage component's property types.
+     * {@code AbstractWelcomePage} component's property types.
      *
      * @static
      */
     static propTypes = {
-        dispatch: React.PropTypes.func,
-        localVideoTrack: React.PropTypes.object,
-        room: React.PropTypes.string
-    }
+        _localVideoTrack: React.PropTypes.object,
+        _room: React.PropTypes.string,
+        dispatch: React.PropTypes.func
+    };
 
     /**
-     * Initializes a new AbstractWelcomePage instance, including the initial
-     * state of the room name input.
+     * Initializes a new {@code AbstractWelcomePage} instance.
      *
-     * @param {Object} props - Component properties.
+     * @param {Object} props - The React {@code Component} props to initialize
+     * the new {@code AbstractWelcomePage} instance with.
      */
     constructor(props) {
         super(props);
@@ -36,15 +37,15 @@ export class AbstractWelcomePage extends Component {
          * Save room name into component's local state.
          *
          * @type {Object}
-         * @property {number|null} animateTimeoutId - Identificator for
-         * letter animation timeout.
+         * @property {number|null} animateTimeoutId - Identifier of the letter
+         * animation timeout.
          * @property {string} generatedRoomname - Automatically generated
          * room name.
          * @property {string} room - Room name.
          * @property {string} roomPlaceholder - Room placeholder
          * that's used as a placeholder for input.
-         * @property {nubmer|null} updateTimeoutId - Identificator for
-         * updating generated room name.
+         * @property {nubmer|null} updateTimeoutId - Identifier of the timeout
+         * updating the generated room name.
          */
         this.state = {
             animateTimeoutId: null,
@@ -54,7 +55,7 @@ export class AbstractWelcomePage extends Component {
             updateTimeoutId: null
         };
 
-        // Bind event handlers so they are only bound once for every instance.
+        // Bind event handlers so they are only bound once per instance.
         this._animateRoomnameChanging
             = this._animateRoomnameChanging.bind(this);
         this._onJoin = this._onJoin.bind(this);
@@ -69,7 +70,7 @@ export class AbstractWelcomePage extends Component {
      * @param {Object} nextProps - New props component will receive.
      */
     componentWillReceiveProps(nextProps) {
-        this.setState({ room: nextProps.room });
+        this.setState({ room: nextProps._room });
     }
 
     /**
@@ -96,11 +97,11 @@ export class AbstractWelcomePage extends Component {
         if (word.length > 1) {
             animateTimeoutId
                 = setTimeout(
-                        () => {
-                            this._animateRoomnameChanging(
-                                    word.substring(1, word.length));
-                        },
-                        70);
+                    () => {
+                        this._animateRoomnameChanging(
+                            word.substring(1, word.length));
+                    },
+                    70);
         }
 
         this.setState({
@@ -142,9 +143,7 @@ export class AbstractWelcomePage extends Component {
     _onJoin() {
         const room = this.state.room || this.state.generatedRoomname;
 
-        if (room) {
-            this.props.dispatch(appNavigate(room));
-        }
+        room && this.props.dispatch(appNavigate(room));
     }
 
     /**
@@ -167,7 +166,7 @@ export class AbstractWelcomePage extends Component {
      */
     _renderLocalVideo() {
         return (
-            <VideoTrack videoTrack = { this.props.localVideoTrack } />
+            <VideoTrack videoTrack = { this.props._localVideoTrack } />
         );
     }
 
@@ -201,17 +200,18 @@ export class AbstractWelcomePage extends Component {
  * to be used in child classes for 'connect'.
  *
  * @param {Object} state - Redux state.
+ * @protected
  * @returns {{
- *      localVideoTrack: (Track|undefined),
- *      room: string
+ *     _localVideoTrack: (Track|undefined),
+ *     _room: string
  * }}
  */
-export function mapStateToProps(state) {
+export function _mapStateToProps(state) {
     const conference = state['features/base/conference'];
     const tracks = state['features/base/tracks'];
 
     return {
-        localVideoTrack: getLocalVideoTrack(tracks),
-        room: conference.room
+        _localVideoTrack: getLocalVideoTrack(tracks),
+        _room: conference.room
     };
 }

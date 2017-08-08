@@ -12,6 +12,16 @@
     overflow: hidden;
 }
 
+.video_blurred_container {
+    height: 100%;
+    filter: blur(40px);
+    left: 0;
+    overflow: hidden;
+    position: absolute;
+    top: 0;
+    width: 100%;
+}
+
 .videocontainer {
     position: relative;
     text-align: center;
@@ -19,7 +29,7 @@
     &__background {
         @include topLeft();
         background-color: black;
-        border-radius: $borderRadius - 1;
+        border-radius: $borderRadius;
         width: 100%;
         height: 100%;
     }
@@ -31,7 +41,7 @@
     &__toptoolbar {
         position: absolute;
         left: 0;
-        z-index: 3;
+        z-index: $zindex3;
         width: 100%;
         box-sizing: border-box; // Includes the padding in the 100% width.
     }
@@ -48,25 +58,33 @@
         padding: $toolbarPadding;
         padding-bottom: 0;
 
+        .connection-indicator,
+        span.indicator {
+            margin-right: em(5, 8);
+        }
+
+        span.indicator {
+            display: none;
+
+            &:last-child {
+                margin-right: 0;
+            }
+        }
+
+        .connection-indicator,
         span.indicator {
             position: relative;
             font-size: 8px;
             text-align: center;
             line-height: $thumbnailIndicatorSize;
-            display: none;
             padding: 0;
-            margin-right: em(5, 8);
             float: left;
             @include circle($thumbnailIndicatorSize);
             box-sizing: border-box;
-            z-index: 3;
+            z-index: $zindex3;
             background: $dominantSpeakerBg;
             color: $thumbnailPictogramColor;
             border: $thumbnailIndicatorBorder solid $thumbnailPictogramColor;
-
-            &:last-child {
-                margin-right: 0;
-            }
 
             .indicatoricon {
                 @include absoluteAligning();
@@ -97,6 +115,11 @@
                     color: #FFFFFF;/*#15A1ED*/
                     overflow: hidden;
                 }
+
+                &_ninja
+                {
+                    font-size: 1.5em;
+                }
             }
 
             .icon-connection,
@@ -113,7 +136,13 @@
         width: 100%;
         height: 100%;
         visibility: hidden;
-        z-index: 2;
+        z-index: $zindex2;
+    }
+
+    &.audio-only {
+        .videoThumbnailProblemFilter {
+            filter: none;
+        }
     }
 }
 
@@ -128,8 +157,8 @@
     -o-transform: scale(-1, 1);
 }
 
-#localVideoWrapper>video,
-#localVideoWrapper>object {
+#localVideoWrapper video,
+#localVideoWrapper object {
     border-radius: $borderRadius !important;
     cursor: hand;
     object-fit: cover;
@@ -142,6 +171,10 @@
     text-align: center;
 }
 
+#largeVideoWrapper {
+    box-shadow: 0 0 20px -2px #444;
+}
+
 #largeVideo,
 #largeVideoWrapper
 {
@@ -150,8 +183,8 @@
 
 #sharedVideo,
 #etherpad,
-#localVideoWrapper>video,
-#localVideoWrapper>object,
+#localVideoWrapper video,
+#localVideoWrapper object,
 #localVideoWrapper,
 #largeVideoWrapper,
 #largeVideoWrapper>video,
@@ -161,7 +194,7 @@
     position: absolute;
     left: 0;
     top: 0;
-    z-index: 1;
+    z-index: $zindex1;
     width: 100%;
     height: 100%;
 }
@@ -171,7 +204,7 @@
 }
 
 #etherpad {
-    z-index: 0;
+    z-index: $zindex0;
 }
 
 /**
@@ -193,7 +226,7 @@
     overflow: hidden;
     white-space: nowrap;
     line-height: $thumbnailToolbarHeight;
-    z-index: 2;
+    z-index: $zindex2;
 }
 
 /**
@@ -233,7 +266,7 @@
     padding: 3px 5px;
     font-size: 9pt;
     cursor: pointer;
-    z-index: 2;
+    z-index: $zindex2;
 }
 
 /**
@@ -268,11 +301,11 @@
   margin: 0px 0px 0px 5px;
 }
 
-#raisehandindicator {
+.raisehandindicator {
   background: $raiseHandBg;
 }
 
-#connectionindicator {
+.connection-indicator {
   background: $connectionIndicatorBg;
 }
 
@@ -282,18 +315,23 @@
     position: absolute;
     top: 0px;
     right: 0;
-    margin: 7px;
-    z-index: 3;
+    margin-top: 7px;
+    z-index: $zindex3;
     width: 18px;
     height: 13px;
     color: #FFF;
-    font-size: 8pt;
+    font-size: 10pt;
+
+    >i{
+        cursor: hand;
+    }
 }
 
 /**
  * Audio indicator on video thumbnails.
  */
-.videocontainer>span.audioindicator {
+.videocontainer>span.audioindicator,
+.videocontainer>.audioindicator-container {
     position: absolute;
     display: inline-block;
     left: 6px;
@@ -301,7 +339,7 @@
     margin-top: -17px;
     width: 6px;
     height: 35px;
-    z-index: 2;
+    z-index: $zindex2;
     border: none;
 
     .audiodot-top,
@@ -344,13 +382,13 @@
     background-clip: padding-box;
     -webkit-border-radius: 5px;
     -webkit-background-clip: padding-box;
-    z-index: 20; /*The reload button should appear on top of the header!*/
+    z-index: $reloadZ; /*The reload button should appear on top of the header!*/
 }
 
 .audiolevel {
     display: inline-block;
     position: absolute;
-    z-index: 0;
+    z-index: $zindex0;
     border-radius:1px;
     pointer-events: none;
 }
@@ -408,7 +446,7 @@
 .noMic {
     position: absolute;
     border-radius: 8px;
-    z-index: 1;
+    z-index: $zindex1;
     width: 100%;
     height: 100%;
     background-image: url("../images/noMic.png");
@@ -420,7 +458,7 @@
 .noVideo {
     position: absolute;
     border-radius: 8px;
-    z-index: 1;
+    z-index: $zindex1;
     width: 100%;
     height: 100%;
     background-image: url("../images/noVideo.png");
@@ -449,15 +487,20 @@
     filter: grayscale(100%);
 }
 
+#remotePresenceMessage,
 #remoteConnectionMessage {
-    display: none;
     position: absolute;
     width: auto;
-    z-index: 2;
+    z-index: $zindex2;
     font-weight: 600;
     font-size: 14px;
     text-align: center;
     color: #FFF;
+    left: 50%;
+    transform: translate(-50%, 0);
+}
+#remotePresenceMessage .presence-label,
+#remoteConnectionMessage {
     opacity: .80;
     text-shadow:    0px 0px 1px rgba(0,0,0,0.3),
                     0px 1px 1px rgba(0,0,0,0.3),
@@ -470,13 +513,18 @@
     padding-left: 10px;
     padding-right: 10px;
 }
+#remotePresenceMessage .no-presence,
+#remoteConnectionMessage {
+    display: none;
+}
 
 #localConnectionMessage {
     display: none;
     position: absolute;
+    left: 0;
     width: 100%;
     top:50%;
-    z-index: 2;
+    z-index: $zindex2;
     font-weight: 600;
     font-size: 14px;
     text-align: center;
@@ -488,31 +536,42 @@
                     0px 0px 1px rgba(0,0,0,0.3);
 }
 
+.filmstrip-only {
+    #videoResolutionLabel {
+        display: none;
+    }
+}
 .video-state-indicator {
     background: $videoStateIndicatorBackground;
     color: $videoStateIndicatorColor;
+    cursor: pointer;
     font-size: 13px;
+    height: 40px;
     line-height: 20px;
     text-align: center;
     min-width: 40px;
-    height: 40px;
     padding: 10px 5px;
     border-radius: 50%;
     position: absolute;
     box-sizing: border-box;
+
+    i {
+        cursor: pointer;
+    }
 }
 
 #videoResolutionLabel,
-.centeredVideoLabel {
-    display: none;
-    z-index: 1011;
+.centeredVideoLabel.moveToCorner {
+    z-index: $tooltipsZ;
 }
 
 .centeredVideoLabel {
     bottom: 45%;
     border-radius: 2px;
+    display: none;
     -webkit-transition: all 2s 2s linear;
     transition: all 2s 2s linear;
+    z-index: $centeredVideoLabelZ;
 
     &.moveToCorner {
         bottom: auto;
@@ -527,4 +586,60 @@
 
 .moveToCorner + .moveToCorner {
     right: 80px;
+}
+
+.video-state-indicator-menu {
+    display: none;
+    padding: 10px;
+    position: absolute;
+    right: -10px;
+    top: 20px;
+
+    .video-state-indicator-menu-options {
+        background: $popoverBg;
+        border-radius: 3px;
+        color: $popoverFontColor;
+        margin-top: 20px;
+        padding: 5px 0;
+        position: relative;
+
+        div {
+            cursor: pointer;
+            padding: 10px;
+            padding-right: 30px;
+            text-align: left;
+            white-space: nowrap;
+
+            &.active {
+                background: $toolbarToggleBackground;
+            }
+            &:hover:not(.active) {
+                background: $popupMenuSelectedItemBackground;
+            }
+
+            i {
+                margin-right: 5px;
+                vertical-align: middle;
+            }
+        }
+    }
+
+    .video-state-indicator-menu-options::after {
+        content: " ";
+        border-color: transparent transparent $popoverBg transparent;
+        border-style: solid;
+        border-width: 5px;
+        position: absolute;
+        right: 15px;
+        top: -10px;
+    }
+}
+
+.video-state-indicator:hover,
+.video-state-indicator *:hover {
+    background: $toolbarSelectBackground;
+
+    .video-state-indicator-menu {
+        display: block;
+    }
 }

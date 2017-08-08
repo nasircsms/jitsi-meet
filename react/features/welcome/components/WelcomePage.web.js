@@ -3,16 +3,10 @@
 import React from 'react';
 import { connect } from 'react-redux';
 
-import { Conference } from '../../conference';
+import { translate } from '../../base/i18n';
+import { Watermarks } from '../../base/react';
 
-import { AbstractWelcomePage, mapStateToProps } from './AbstractWelcomePage';
-
-/**
- * The CSS style of the element with CSS class <tt>rightwatermark</tt>.
- */
-const RIGHT_WATERMARK_STYLE = {
-    backgroundImage: 'url(images/rightwatermark.png)'
-};
+import { AbstractWelcomePage, _mapStateToProps } from './AbstractWelcomePage';
 
 /* eslint-disable require-jsdoc */
 
@@ -34,7 +28,13 @@ class WelcomePage extends AbstractWelcomePage {
     constructor(props) {
         super(props);
 
-        this._initState();
+        this.state = {
+            ...this.state,
+
+            enableWelcomePage: true,
+            generateRoomnames:
+                interfaceConfig.GENERATE_ROOMNAMES_ON_WELCOME_PAGE
+        };
 
         // Bind event handlers so they are only bound once for every instance.
         this._onDisableWelcomeChange = this._onDisableWelcomeChange.bind(this);
@@ -61,59 +61,31 @@ class WelcomePage extends AbstractWelcomePage {
      * @returns {ReactElement|null}
      */
     render() {
-        // FIXME The rendering of Conference bellow is a very quick and dirty
-        // temporary fix for the following issue: when the WelcomePage is
-        // disabled, app.js expects Conference to be rendered already and only
-        // then it builds a room name but the App component expects the room
-        // name to be built already (by looking at the window's location) in
-        // order to choose between WelcomePage and Conference.
         return (
-            <div>
-                <div id = 'welcome_page'>
-                    {
-                        this._renderHeader()
-                    }
-                    {
-                        this._renderMain()
-                    }
-                </div>
-                <Conference />
+            <div id = 'welcome_page'>
+                {
+                    this._renderHeader()
+                }
+                {
+                    this._renderMain()
+                }
             </div>
         );
     }
 
     /**
-     * Returns the domain name.
+     * Returns the URL of this WelcomePage for display purposes. For
+     * historic/legacy reasons, the return value is referred to as domain.
      *
      * @private
-     * @returns {string} Domain name.
+     * @returns {string} The URL of this WelcomePage for display purposes.
      */
     _getDomain() {
-        return `${window.location.protocol}//${window.location.host}/`;
-    }
+        // As the returned URL is for display purposes, do not return the
+        // userinfo, query and fragment URI parts.
+        const wl = window.location;
 
-    /**
-     * Method that initializes state of the component.
-     *
-     * @returns {void}
-     */
-    _initState() {
-        const showBrandWatermark = interfaceConfig.SHOW_BRAND_WATERMARK;
-        const showJitsiWatermark = interfaceConfig.SHOW_JITSI_WATERMARK;
-
-        this.state = {
-            ...this.state,
-            brandWatermarkLink:
-                showBrandWatermark ? interfaceConfig.BRAND_WATERMARK_LINK : '',
-            enableWelcomePage: true,
-            generateRoomnames:
-                interfaceConfig.GENERATE_ROOMNAMES_ON_WELCOME_PAGE,
-            jitsiWatermarkLink:
-                showJitsiWatermark ? interfaceConfig.JITSI_WATERMARK_LINK : '',
-            showBrandWatermark,
-            showJitsiWatermark,
-            showPoweredBy: interfaceConfig.SHOW_POWERED_BY
-        };
+        return `${wl.protocol}//${wl.host}${wl.pathname}`;
     }
 
     /**
@@ -126,23 +98,10 @@ class WelcomePage extends AbstractWelcomePage {
      */
     _onDisableWelcomeChange(event) {
         this.setState({
-            enableWelcomePage: !event.target.value
+            enableWelcomePage: !event.target.checked
         }, () => {
             APP.settings.setWelcomePageEnabled(this.state.enableWelcomePage);
         });
-    }
-
-    /**
-     * Overrides the super in order to prevent the dispatching of the Redux
-     * action SET_ROOM.
-     *
-     * @override
-     * @protected
-     * @returns {null}
-     */
-    _onJoin() {
-        // Don't call the super implementation and thus prevent the dispatching
-        // of the Redux action SET_ROOM.
     }
 
     /**
@@ -174,28 +133,6 @@ class WelcomePage extends AbstractWelcomePage {
     }
 
     /**
-     * Method that returns brand watermark element if it is enabled.
-     *
-     * @private
-     * @returns {ReactElement|null} Watermark element or null.
-     */
-    _renderBrandWatermark() {
-        if (this.state.showBrandWatermark) {
-            return (
-                <a
-                    href = { this.state.brandWatermarkLink }
-                    target = '_new'>
-                    <div
-                        className = 'watermark rightwatermark'
-                        style = { RIGHT_WATERMARK_STYLE } />
-                </a>
-            );
-        }
-
-        return null;
-    }
-
-    /**
      * Renders a feature with a specific index.
      *
      * @param {number} index - The index of the feature to render.
@@ -203,17 +140,19 @@ class WelcomePage extends AbstractWelcomePage {
      * @returns {ReactElement}
      */
     _renderFeature(index) {
+        const { t } = this.props;
+        const tns = `welcomepage.feature${index}`;
+
         return (
-            <div className = 'feature_holder'>
-                <div
-                    className = 'feature_icon'
-                    data-i18n = { `welcomepage.feature${index}.title` } />
-                <div
-                    className = 'feature_description'
-                    data-i18n = { `welcomepage.feature${index}.content` }
-                    data-i18n-options = { JSON.stringify({
-                        postProcess: 'resolveAppName'
-                    }) } />
+            <div
+                className = 'feature_holder'
+                key = { index } >
+                <div className = 'feature_icon'>
+                    { t(`${tns}.title`) }
+                </div>
+                <div className = 'feature_description'>
+                    { t(`${tns}.content`, { postProcess: 'resolveAppName' }) }
+                </div>
             </div>
         );
     }
@@ -244,8 +183,6 @@ class WelcomePage extends AbstractWelcomePage {
         );
     }
 
-/* eslint-disable require-jsdoc */
-
     /**
      * Renders the header part of this WelcomePage.
      *
@@ -253,20 +190,12 @@ class WelcomePage extends AbstractWelcomePage {
      * @returns {ReactElement|null}
      */
     _renderHeader() {
-
-/* eslint-enable require-jsdoc */
+        const { t } = this.props;
 
         return (
             <div id = 'welcome_page_header'>
-                {
-                    this._renderJitsiWatermark()
-                }
-                {
-                    this._renderBrandWatermark()
-                }
-                {
-                    this._renderPoweredBy()
-                }
+                <Watermarks />
+
                 <div id = 'enter_room_container'>
                     <div id = 'enter_room_form'>
                         <div className = 'domain-name'>
@@ -295,10 +224,11 @@ class WelcomePage extends AbstractWelcomePage {
 
                             <button
                                 className = 'enter-room__button'
-                                data-i18n = 'welcomepage.go'
                                 id = 'enter_room_button'
                                 onClick = { this._onJoin }
-                                type = 'button' />
+                                type = 'button'>
+                                { t('welcomepage.go') }
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -311,52 +241,12 @@ class WelcomePage extends AbstractWelcomePage {
                     type = 'checkbox' />
                 <label
                     className = 'disable_welcome_position'
-                    data-i18n = 'welcomepage.disable'
-                    htmlFor = 'disable_welcome' />
+                    htmlFor = 'disable_welcome'>
+                    { t('welcomepage.disable') }
+                </label>
                 <div id = 'header_text' />
             </div>
         );
-    }
-
-    /**
-     * Method that returns jitsi watermark element if it is enabled.
-     *
-     * @private
-     * @returns {ReactElement|null} Watermark element or null.
-     */
-    _renderJitsiWatermark() {
-        if (this.state.showJitsiWatermark) {
-            return (
-                <a
-                    href = { this.state.jitsiWatermarkLink }
-                    target = '_new'>
-                    <div className = 'watermark leftwatermark' />
-                </a>
-            );
-        }
-
-        return null;
-    }
-
-    /**
-     * Renders powered by block if it is enabled.
-     *
-     * @private
-     * @returns {ReactElement|null}
-     */
-    _renderPoweredBy() {
-        if (this.state.showPoweredBy) {
-            return (
-                <a
-                    className = 'poweredby'
-                    href = 'http://jitsi.org'
-                    target = '_new'>
-                    <span data-i18n = 'poweredby' /> jitsi.org
-                </a>
-            );
-        }
-
-        return null;
     }
 
     /**
@@ -381,4 +271,4 @@ class WelcomePage extends AbstractWelcomePage {
     }
 }
 
-export default connect(mapStateToProps)(WelcomePage);
+export default translate(connect(_mapStateToProps)(WelcomePage));

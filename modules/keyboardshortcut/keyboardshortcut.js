@@ -1,4 +1,7 @@
-/* global APP, $, JitsiMeetJS */
+/* global APP, $, JitsiMeetJS, interfaceConfig */
+
+import { toggleDialog } from '../../react/features/base/dialog';
+import { SpeakerStats } from '../../react/features/speaker-stats';
 
 /**
  * The reference to the shortcut dialogs when opened.
@@ -12,7 +15,6 @@ let keyboardShortcutDialog = null;
  * triggered _only_ with a shortcut.
  */
 function initGlobalShortcuts() {
-
     KeyboardShortcut.registerShortcut("ESCAPE", null, function() {
         showKeyboardShortcutsPanel(false);
     });
@@ -29,6 +31,15 @@ function initGlobalShortcuts() {
     });
     KeyboardShortcut._addShortcutToHelp("SPACE","keyboardShortcuts.pushToTalk");
 
+    if(!interfaceConfig.filmStripOnly) {
+        KeyboardShortcut.registerShortcut("T", null, () => {
+            JitsiMeetJS.analytics.sendEvent("shortcut.speakerStats.clicked");
+            APP.store.dispatch(toggleDialog(SpeakerStats, {
+                conference: APP.conference
+            }));
+        }, "keyboardShortcuts.showSpeakerStats");
+    }
+
     /**
      * FIXME: Currently focus keys are directly implemented below in onkeyup.
      * They should be moved to the SmallVideo instead.
@@ -43,19 +54,16 @@ function initGlobalShortcuts() {
  */
 function showKeyboardShortcutsPanel(show) {
     if (show
-        && !APP.UI.messageHandler.isDialogOpened()
-        && keyboardShortcutDialog === null) {
-
+            && !APP.UI.messageHandler.isDialogOpened()
+            && keyboardShortcutDialog === null) {
         let msg = $('#keyboard-shortcuts').html();
         let buttons = { Close: true };
 
         keyboardShortcutDialog = APP.UI.messageHandler.openDialog(
             'keyboardShortcuts.keyboardShortcuts', msg, true, buttons);
-    } else {
-        if (keyboardShortcutDialog !== null) {
-            keyboardShortcutDialog.close();
-            keyboardShortcutDialog = null;
-        }
+    } else if (keyboardShortcutDialog !== null) {
+        keyboardShortcutDialog.close();
+        keyboardShortcutDialog = null;
     }
 }
 
@@ -66,14 +74,23 @@ function showKeyboardShortcutsPanel(show) {
 let _shortcuts = {};
 
 /**
+ * True if the keyboard shortcuts are enabled and false if not.
+ * @type {boolean}
+ */
+let enabled = true;
+
+/**
  * Maps keycode to character, id of popover for given function and function.
  */
-var KeyboardShortcut = {
+const KeyboardShortcut = {
     init: function () {
         initGlobalShortcuts();
 
         var self = this;
         window.onkeyup = function(e) {
+            if(!enabled) {
+                return;
+            }
             var key = self._getKeyboardKey(e).toUpperCase();
             var num = parseInt(key, 10);
             if(!($(":focus").is("input[type=text]") ||
@@ -93,6 +110,9 @@ var KeyboardShortcut = {
         };
 
         window.onkeydown = function(e) {
+            if(!enabled) {
+                return;
+            }
             if(!($(":focus").is("input[type=text]") ||
                 $(":focus").is("input[type=password]") ||
                 $(":focus").is("textarea"))) {
@@ -103,6 +123,14 @@ var KeyboardShortcut = {
                 }
             }
         };
+    },
+
+    /**
+     * Enables/Disables the keyboard shortcuts.
+     * @param {boolean} value - the new value.
+     */
+    enable: function (value) {
+        enabled = value;
     },
 
     /**
@@ -245,4 +273,4 @@ var KeyboardShortcut = {
     }
 };
 
-module.exports = KeyboardShortcut;
+export default KeyboardShortcut;

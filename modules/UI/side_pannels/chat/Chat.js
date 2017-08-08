@@ -2,13 +2,14 @@
 
 import {processReplacements, linkify} from './Replacement';
 import CommandsProcessor from './Commands';
-import ToolbarToggler from '../../toolbars/ToolbarToggler';
 import VideoLayout from "../../videolayout/VideoLayout";
 
 import UIUtil from '../../util/UIUtil';
 import UIEvents from '../../../../service/UI/UIEvents';
 
 import { smileys } from './smileys';
+
+import { dockToolbox, setSubject } from '../../../../react/features/toolbox';
 
 let unreadMessages = 0;
 const sidePanelsContainerId = 'sideToolbarContainer';
@@ -24,12 +25,12 @@ const htmlStr = `
         </div>
 
         <div id="chatconversation"></div>
-        <audio id="chatNotification" src="sounds/incomingMessage.wav" 
+        <audio id="chatNotification" src="sounds/incomingMessage.wav"
             preload="auto"></audio>
-        <textarea id="usermsg" autofocus 
+        <textarea id="usermsg" autofocus
             data-i18n="[placeholder]chat.messagebox"></textarea>
         <div id="smileysarea">
-            <div id="smileys" id="toggle_smileys">
+            <div id="smileys">
                 <img src="images/smile.svg"/>
             </div>
         </div>
@@ -49,30 +50,41 @@ var CHAT_CONTAINER_ID = "chat_container";
  *  Updates visual notification, indicating that a message has arrived.
  */
 function updateVisualNotification() {
-    var unreadMsgElement = document.getElementById('unreadMessages');
+    // XXX The rewrite of the toolbar in React delayed the availability of the
+    // element unreadMessages. In order to work around the delay, I introduced
+    // and utilized unreadMsgSelector in addition to unreadMsgElement.
+    const unreadMsgSelector = $('#unreadMessages');
+    const unreadMsgElement
+        = unreadMsgSelector.length > 0 ? unreadMsgSelector[0] : undefined;
 
-    if (unreadMessages) {
+    if (unreadMessages && unreadMsgElement) {
         unreadMsgElement.innerHTML = unreadMessages.toString();
 
-        ToolbarToggler.dockToolbar(true);
+        APP.store.dispatch(dockToolbox(true));
 
-        var chatButtonElement
+        const chatButtonElement
             = document.getElementById('toolbar_button_chat');
-        var leftIndent = (UIUtil.getTextWidth(chatButtonElement) -
-            UIUtil.getTextWidth(unreadMsgElement)) / 2;
-        var topIndent = (UIUtil.getTextHeight(chatButtonElement) -
-            UIUtil.getTextHeight(unreadMsgElement)) / 2 - 5;
+        const leftIndent
+            = (UIUtil.getTextWidth(chatButtonElement)
+                    - UIUtil.getTextWidth(unreadMsgElement))
+                / 2;
+        const topIndent
+            = (UIUtil.getTextHeight(chatButtonElement)
+                        - UIUtil.getTextHeight(unreadMsgElement))
+                    / 2
+                - 5;
 
         unreadMsgElement.setAttribute(
-            'style',
-                'top:' + topIndent +
-                '; left:' + leftIndent + ';');
+                'style',
+                'top:' + topIndent + '; left:' + leftIndent + ';');
     }
     else {
-        unreadMsgElement.innerHTML = '';
+        unreadMsgSelector.html('');
     }
 
-    $(unreadMsgElement).parent()[unreadMessages > 0 ? 'show' : 'hide']();
+    if (unreadMsgElement) {
+        unreadMsgSelector.parent()[unreadMessages > 0 ? 'show' : 'hide']();
+    }
 }
 
 
@@ -164,9 +176,7 @@ function resizeChatConversation() {
  * @param id {string} input id
  */
 function deferredFocus(id){
-    setTimeout(function (){
-        $(`#${id}`).focus();
-    }, 400);
+    setTimeout(() => $(`#${id}`).focus(), 400);
 }
 /**
  * Chat related user interface.
@@ -181,7 +191,7 @@ var Chat = {
             Chat.setChatConversationMode(true);
         }
 
-        $("#toggle_smileys").click(function() {
+        $("#smileys").click(function() {
             Chat.toggleSmileys();
         });
 
@@ -229,7 +239,7 @@ var Chat = {
                 // Undock the toolbar when the chat is shown and if we're in a
                 // video mode.
                 if (VideoLayout.isLargeVideoVisible()) {
-                    ToolbarToggler.dockToolbar(false);
+                    APP.store.dispatch(dockToolbox(false));
                 }
 
                 // if we are in conversation mode focus on the text input
@@ -294,7 +304,7 @@ var Chat = {
 
         $('#chatconversation').append(
             '<div class="errorMessage"><b>Error: </b>' + 'Your message' +
-            (originalText? (' \"'+ originalText + '\"') : "") +
+            (originalText? (` "${originalText}"`) : "") +
             ' was not sent.' +
             (errorMessage? (' Reason: ' + errorMessage) : '') +  '</div>');
         $('#chatconversation').animate(
@@ -310,10 +320,9 @@ var Chat = {
             subject = subject.trim();
         }
 
-        let subjectId = 'subject';
-        let html = linkify(UIUtil.escapeHtml(subject));
-        $(`#${subjectId}`).html(html);
-        UIUtil.setVisible(subjectId, subject && subject.length > 0);
+        const html = linkify(UIUtil.escapeHtml(subject));
+
+        APP.store.dispatch(setSubject(html));
     },
 
     /**
@@ -353,10 +362,17 @@ var Chat = {
      * Scrolls chat to the bottom.
      */
     scrollChatToBottom () {
-        setTimeout(function () {
-            $('#chatconversation').scrollTop(
-                $('#chatconversation')[0].scrollHeight);
-        }, 5);
+        setTimeout(
+            () => {
+                const chatconversation = $('#chatconversation');
+
+                // XXX Prevent TypeError: undefined is not an object when the
+                // Web browser does not support WebRTC (yet).
+                chatconversation.length > 0
+                    && chatconversation.scrollTop(
+                            chatconversation[0].scrollHeight);
+            },
+            5);
     }
 };
 

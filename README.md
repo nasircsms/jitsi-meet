@@ -1,5 +1,5 @@
-Jitsi Meet - Secure, Simple and Scalable Video Conferences
-====
+# Jitsi Meet - Secure, Simple and Scalable Video Conferences
+
 Jitsi Meet is an open-source (Apache) WebRTC JavaScript application that uses [Jitsi Videobridge](https://jitsi.org/videobridge) to provide high quality, scalable video conferences. You can see [Jitsi Meet in action](http://youtu.be/7vFUVClsNh0) here at the session #482 of the VoIP Users Conference.
 
 You can also try it out yourself at https://meet.jit.si .
@@ -15,12 +15,20 @@ For other systems, or if you wish to install all components manually, see the [d
 ## Download
 
 You can download Debian/Ubuntu binaries:
-* [stable](https://download.jitsi.org/stable/) ([instructions](https://jitsi.org/Main/InstallJitsiMeetDebianStableRepository))
-* [nightly](https://download.jitsi.org/unstable/) ([instructions](https://jitsi.org/Main/InstallJitsiMeetDebianNightlyRepository))
+* [stable](https://download.jitsi.org/stable/) ([instructions](https://jitsi.org/downloads/ubuntu-debian-installations-instructions/))
+* [testing](https://download.jitsi.org/testing/) ([instructions](https://jitsi.org/downloads/ubuntu-debian-installations-instructions-for-testing/))
+* [nightly](https://download.jitsi.org/unstable/) ([instructions](https://jitsi.org/downloads/ubuntu-debian-installations-instructions-nightly/))
+
+You can download source archives (produced by ```make source-package```):
+* [source builds](https://download.jitsi.org/jitsi-meet/src/)
+
+You can get our mobile versions from here:
+* [Android](https://play.google.com/store/apps/details?id=org.jitsi.meet)
+* [iOS](https://itunes.apple.com/us/app/jitsi-meet/id1165103905)
 
 ## Building the sources
 
-Jitsi Meet uses [Browserify](http://browserify.org). If you want to make changes in the code you need to [install Browserify](http://browserify.org/#install). Browserify requires [nodejs](http://nodejs.org).
+Node.js >= 6 is required.
 
 On Debian/Ubuntu systems, the required packages can be installed with:
 ```
@@ -34,7 +42,7 @@ To build the Jitsi Meet application, just type
 make
 ```
 
-## Working with the library sources(lib-jitsi-meet).
+## Working with the library sources (lib-jitsi-meet)
 
 By default the library is build from its git repository sources. The default dependency path in package.json is :
 ```json
@@ -81,8 +89,18 @@ npm unlink lib-jitsi-meet
 npm install
 ```
 
-## Discuss
-Please use the [Jitsi dev mailing list](http://lists.jitsi.org/pipermail/dev/) to discuss feature requests before opening an issue on Github.
+## Contributing
+
+If you are looking to contribute to Jitsi Meet, first of all, thank you! Please
+see our [guidelines for contributing](CONTRIBUTING.md).
+
+## Embedding in external applications
+
+Jitsi Meet provides a very flexible way of embedding it in external applications by using the [Jitsi Meet API](doc/api.md).
+
+## Mobile app
+Jitsi Meet is also available as a React Native application for Android and iOS.
+Instructions on how to build it can be  found [here](doc/mobile.md).
 
 ## Acknowledgements
 

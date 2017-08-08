@@ -1,9 +1,12 @@
 /* global $, APP, interfaceConfig */
-const logger = require("jitsi-meet-logger").getLogger(__filename);
+
+import { openInviteDialog } from '../../../../react/features/invite';
 
 import Avatar from '../../avatar/Avatar';
 import UIEvents from '../../../../service/UI/UIEvents';
 import UIUtil from '../../util/UIUtil';
+
+const logger = require('jitsi-meet-logger').getLogger(__filename);
 
 let numberOfContacts = 0;
 const sidePanelsContainerId = 'sideToolbarContainer';
@@ -96,7 +99,7 @@ var ContactListView = {
         this.model = model;
         this.addInviteButton();
         this.registerListeners();
-        this.toggleLock();
+        this.setLockDisplay(false);
     },
     /**
      * Adds layout for invite button
@@ -108,8 +111,9 @@ var ContactListView = {
             .insertAdjacentHTML('afterend', this.getInviteButtonLayout());
 
         APP.translation.translateElement($(container));
+
         $(document).on('click', '#addParticipantsBtn', () => {
-            APP.UI.emitEvent(UIEvents.INVITE_CLICKED);
+            APP.store.dispatch(openInviteDialog());
         });
     },
     /**
@@ -125,8 +129,8 @@ var ContactListView = {
 
         return (
             `<div class="sideToolbarBlock first">
-                <button id="addParticipantsBtn" 
-                         data-i18n="${key}" 
+                <button id="addParticipantsBtn"
+                         data-i18n="${key}"
                          class="${classes}"></button>
                 <div>
                     ${lockedHtml}
@@ -158,7 +162,7 @@ var ContactListView = {
         let displayNameChange = this.onDisplayNameChange.bind(this);
 
         APP.UI.addListener( UIEvents.TOGGLE_ROOM_LOCK,
-                            this.toggleLock.bind(this));
+                            this.setLockDisplay.bind(this));
         APP.UI.addListener( UIEvents.CONTACT_ADDED,
                             this.onAddContact.bind(this));
 
@@ -166,21 +170,28 @@ var ContactListView = {
         APP.UI.addListener(UIEvents.USER_AVATAR_CHANGED, changeAvatar);
         APP.UI.addListener(UIEvents.DISPLAY_NAME_CHANGED, displayNameChange);
     },
-    /**
-     * Updating the view according the model
-     * @param type {String} type of change
-     * @returns {Promise}
-     */
-    toggleLock() {
-        let isLocked = this.model.isLocked();
-        let showKey = isLocked ? this.lockKey : this.unlockKey;
-        let hideKey = !isLocked ? this.lockKey : this.unlockKey;
-        let showId = `contactList${showKey}`;
-        let hideId = `contactList${hideKey}`;
 
-        $(`#${showId}`).show();
-        $(`#${hideId}`).hide();
+    /**
+     * Updates the view according to the passed in lock state.
+     *
+     * @param {boolean} locked - True to display the locked UI state or false to
+     * display the unlocked UI state.
+     */
+    setLockDisplay(locked) {
+        let hideKey, showKey;
+
+        if (locked) {
+            hideKey = this.unlockKey;
+            showKey = this.lockKey;
+        } else {
+            hideKey = this.lockKey;
+            showKey = this.unlockKey;
+        }
+
+        $(`#contactList${hideKey}`).hide();
+        $(`#contactList${showKey}`).show();
     },
+
     /**
      * Indicates if the chat is currently visible.
      *

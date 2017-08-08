@@ -1,31 +1,19 @@
-import { ColorPalette, createStyleSheet } from '../../base/styles';
+import {
+    ColorPalette,
+    createStyleSheet,
+    fixAndroidViewClipping
+} from '../../base/styles';
 
 /**
- * The style of the conference UI (component).
+ * The styles of the feature conference.
  */
-export const styles = createStyleSheet({
+export default createStyleSheet({
     /**
-     * Avatar style.
+     * {@code Conference} style.
      */
-    avatar: {
-        flex: 1,
-        width: '100%'
-    },
-
-    /**
-     * Conference style.
-     */
-    conference: {
+    conference: fixAndroidViewClipping({
         alignSelf: 'stretch',
         backgroundColor: ColorPalette.appBackground,
         flex: 1
-    },
-
-    /**
-     * ParticipantView style
-     */
-    participantView: {
-        alignItems: 'stretch',
-        flex: 1
-    }
+    })
 });

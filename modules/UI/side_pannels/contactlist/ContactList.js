@@ -19,14 +19,12 @@ class ContactList {
     }
 
     /**
-     * Is locked flag.
-     * Delegates to Invite module
-     * TO FIX: find a better way to access the IS LOCKED state of the invite.
+     * Returns true if the current conference is locked.
      *
      * @returns {Boolean}
      */
     isLocked() {
-        return APP.conference.invite.isLocked();
+        return APP.store.getState()['features/base/conference'].locked;
     }
 
     /**
@@ -36,9 +34,9 @@ class ContactList {
      * @param isLocal
      */
     addContact(id, isLocal) {
-        let isExist = this.contacts.some((el) => el.id === id);
+        const exists = this.contacts.some(el => el.id === id);
 
-        if (!isExist) {
+        if (!exists) {
             let newContact = new Contact({ id, isLocal });
             this.contacts.push(newContact);
             APP.UI.emitEvent(UIEvents.CONTACT_ADDED, { id, isLocal });

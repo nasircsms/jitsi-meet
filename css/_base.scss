@@ -1,23 +1,32 @@
-* {
+/**
+ * Safari will limit input in input elements to one character when user-select
+ * none is applied. Other browsers already support selecting within inputs while
+ * user-select is none. As such, disallow user-select except on inputs.
+ */
+*:not(input) {
     -webkit-user-select: none;
     user-select: none;
 }
 
-html, body{
-    margin:0px;
-    height:100%;
-    color: $defaultColor;
+body {
+    margin: 0px;
+    width: 100%;
+    height: 100%;
     font-size: 12px;
     font-weight: 400;
-    background: #000000;
     overflow: hidden;
+    color: $defaultColor;
+    background: $defaultBackground;
+    &.filmstrip-only {
+        background: transparent;
+    }
 }
 
 p {
     margin: 0;
 }
 
-html, body, input, textarea, keygen, select, button {
+body, input, textarea, keygen, select, button {
     font-family: $baseFontFamily !important;
 }
 
@@ -32,16 +41,11 @@ html, body, input, textarea, keygen, select, button {
 button, input, select, textarea {
     margin: 0;
     vertical-align: baseline;
-    color: $inputColor;
     font-size: 1em;
 }
 
 button, select, input[type="button"],
 input[type="reset"], input[type="submit"] {
-    height: 32px;
-    line-height: 32px;
-    padding-left: 4px;
-    padding-right: 4px;
     cursor: pointer;
 }
 
@@ -80,7 +84,7 @@ form {
     height: 74px;
     background-size: contain;
     background-repeat: no-repeat;
-    z-index: 2;
+    z-index: $zindex2;
 }
 
 .leftwatermark {
@@ -102,7 +106,7 @@ form {
     font-size: 11pt;
     color: rgba(255,255,255,.50);
     text-decoration: none;
-    z-index: 100;
+    z-index: $poweredByZ;
 }
 
 .connected {
@@ -122,6 +126,7 @@ form {
     z-index: $tooltipsZ;
     &-inner {
         background-color: $tooltipBg;
+        max-width: 350px;
     }
 
     &-arrow {
@@ -139,4 +144,29 @@ form {
 #inviteLinkRef {
     -webkit-user-select: text;
     user-select: text;
+}
+
+/**
+ * Re-style default OS scrollbar.
+ */
+::-webkit-scrollbar {
+    background: transparent;
+    width: 7px;
+}
+
+::-webkit-scrollbar-button {
+    display: none;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-track-piece {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, .5);
+    border-radius: 4px;
 }

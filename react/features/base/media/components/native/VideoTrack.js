@@ -2,8 +2,8 @@ import React from 'react';
 import { Animated } from 'react-native';
 import { connect } from 'react-redux';
 
-import { AbstractVideoTrack } from '../AbstractVideoTrack';
-import { styles } from './styles';
+import AbstractVideoTrack from '../AbstractVideoTrack';
+import styles from './styles';
 
 /**
  * Component that renders video element for a specified video track.
@@ -140,9 +140,10 @@ class VideoTrack extends AbstractVideoTrack {
 
     // eslint-disable-next-line valid-jsdoc
     /**
-     * @inheritdoc
-     *
      * Animate the setting of the video track to be rendered by this instance.
+     *
+     * @inheritdoc
+     * @protected
      */
     _setVideoTrack(videoTrack) {
         // If JitsiTrack instance didn't change, that means some other track's

@@ -1,31 +1,23 @@
+/* @flow */
+
 import React, { Component } from 'react';
-import { Platform, View } from 'react-native';
 import { RTCView } from 'react-native-webrtc';
 
-import { styles } from './styles';
+import styles from './styles';
 
 /**
- * Indicates whether RTCView (is to be considered that it) natively supports
- * i.e. implements mirroring the video it renders. If false, a workaround will
- * be used in an attempt to support mirroring in Video. If RTCView does not
- * implement mirroring on a specific platform but the workaround causes issues,
- * set to true for that platform to disable the workaround.
+ * The React Native {@link Component} which is similar to Web's
+ * {@code HTMLVideoElement} and wraps around react-native-webrtc's
+ * {@link RTCView}.
  */
-const RTCVIEW_SUPPORTS_MIRROR = Platform.OS === 'android';
-
-/**
- * The React Native component which is similar to Web's video element and wraps
- * around react-native-webrtc's RTCView.
- */
-export class Video extends Component {
+export default class Video extends Component {
     /**
-     * Video component's property types.
+     * {@code Video} component's property types.
      *
      * @static
      */
     static propTypes = {
         mirror: React.PropTypes.bool,
-        muted: React.PropTypes.bool,
         onPlaying: React.PropTypes.func,
         stream: React.PropTypes.object,
 
@@ -53,7 +45,7 @@ export class Video extends Component {
          * 1 for the local video(s) which appear above the remote video(s).
          */
         zOrder: React.PropTypes.number
-    }
+    };
 
     /**
      * React Component method that executes once component is mounted.
@@ -63,9 +55,9 @@ export class Video extends Component {
     componentDidMount() {
         // RTCView currently does not support media events, so just fire
         // onPlaying callback when <RTCView> is rendered.
-        if (this.props.onPlaying) {
-            this.props.onPlaying();
-        }
+        const { onPlaying } = this.props;
+
+        onPlaying && onPlaying();
     }
 
     /**
@@ -75,7 +67,7 @@ export class Video extends Component {
      * @returns {ReactElement|null}
      */
     render() {
-        const stream = this.props.stream;
+        const { stream } = this.props;
 
         if (stream) {
             const streamURL = stream.toURL();
@@ -89,31 +81,15 @@ export class Video extends Component {
             const style = styles.video;
             const objectFit = (style && style.objectFit) || 'cover';
 
-            const mirror = this.props.mirror;
-
-            // XXX RTCView doesn't currently support mirroring, even when
-            // providing a transform style property. As a workaround, wrap the
-            // RTCView inside another View and apply the transform style
-            // property to that View instead.
-            const mirrorWorkaround = mirror && !RTCVIEW_SUPPORTS_MIRROR;
-
             // eslint-disable-next-line no-extra-parens
-            const video = (
+            return (
                 <RTCView
-                    mirror = { !mirrorWorkaround }
+                    mirror = { this.props.mirror }
                     objectFit = { objectFit }
                     streamURL = { streamURL }
                     style = { style }
                     zOrder = { this.props.zOrder } />
             );
-
-            if (mirrorWorkaround) {
-                return (
-                    <View style = { styles.mirroredVideo }>{ video }</View>
-                );
-            }
-
-            return video;
         }
 
         // RTCView has peculiarities which may or may not be platform specific.

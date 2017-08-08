@@ -1,31 +1,62 @@
-import { Symbol } from '../react';
-
 /**
- * Action to change muted state of the local audio.
+ * The type of (redux) action to set the muted state of the local audio.
  *
  * {
- *      type: AUDIO_MUTED_CHANGED,
- *      muted: boolean
+ *     type: SET_AUDIO_MUTED,
+ *     muted: boolean
  * }
  */
-export const AUDIO_MUTED_CHANGED = Symbol('AUDIO_MUTED_CHANGED');
+export const SET_AUDIO_MUTED = Symbol('SET_AUDIO_MUTED');
 
 /**
- * Action to signal a change of the facing mode of the local video camera.
+ * The type of (redux) action to adjust the availability of the local audio.
  *
  * {
- *      type: CAMERA_FACING_MODE_CHANGED,
- *      cameraFacingMode: CAMERA_FACING_MODE
+ *     type: SET_AUDIO_AVAILABLE,
+ *     muted: boolean
  * }
  */
-export const CAMERA_FACING_MODE_CHANGED = Symbol('CAMERA_FACING_MODE_CHANGED');
+export const SET_AUDIO_AVAILABLE = Symbol('SET_AUDIO_AVAILABLE');
 
 /**
- * Action to change muted state of the local video.
+ * The type of (redux) action to set the facing mode of the local video camera
+ * to a specific value.
  *
  * {
- *      type: VIDEO_MUTED_CHANGED,
- *      muted: boolean
+ *     type: SET_CAMERA_FACING_MODE,
+ *     cameraFacingMode: CAMERA_FACING_MODE
  * }
  */
-export const VIDEO_MUTED_CHANGED = Symbol('VIDEO_MUTED_CHANGED');
+export const SET_CAMERA_FACING_MODE = Symbol('SET_CAMERA_FACING_MODE');
+
+/**
+ * The type of (redux) action to adjust the availability of the local video.
+ *
+ * {
+ *     type: SET_VIDEO_AVAILABLE,
+ *     available: boolean
+ * }
+ */
+export const SET_VIDEO_AVAILABLE = Symbol('SET_VIDEO_AVAILABLE');
+
+/**
+ * The type of (redux) action to set the muted state of the local video.
+ *
+ * {
+ *     type: SET_VIDEO_MUTED,
+ *     muted: boolean
+ * }
+ */
+export const SET_VIDEO_MUTED = Symbol('SET_VIDEO_MUTED');
+
+/**
+ * The type of (redux) action to toggle the local video camera facing mode. In
+ * contrast to SET_CAMERA_FACING_MODE, allows the toggling to be optimally
+ * and/or natively implemented without the overhead of separate reads and writes
+ * of the current/effective camera facing mode.
+ *
+ * {
+ *     type: TOGGLE_CAMERA_FACING_MODE
+ * }
+ */
+export const TOGGLE_CAMERA_FACING_MODE = Symbol('TOGGLE_CAMERA_FACING_MODE');

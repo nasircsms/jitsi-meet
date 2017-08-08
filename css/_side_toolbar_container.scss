@@ -2,7 +2,7 @@
  * Toolbar side panel main container element.
  */
 #sideToolbarContainer {
-    background-color: rgba(0,0,0,0.8);
+    background-color: $sideToolbarContainerBg;
     height: 100%;
     left: $defaultToolbarSize;
     max-width: $sidebarWidth;
@@ -10,7 +10,7 @@
     position: absolute;
     top: 0;
     width: 0;
-    z-index: 800;
+    z-index: $sideToolbarContainerZ;
 
     /**
      * Labels inside the side panel.
@@ -111,6 +111,12 @@
 #device_settings {
     width : auto !important;
     text-align: center;
+}
+
+#deviceOptionsWrapper {
+    button {
+        float: none;
+    }
 }
 
 /**

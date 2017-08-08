@@ -1,14 +1,5 @@
-import React from 'react';
-import { Provider } from 'react-redux';
-import {
-    browserHistory,
-    Route,
-    Router
-} from 'react-router';
-import { push, syncHistoryWithStore } from 'react-router-redux';
-
-import { getDomain } from '../../base/connection';
-import { RouteRegistry } from '../../base/navigator';
+import { getLocationContextRoot } from '../../base/util';
+import '../../room-lock';
 
 import { AbstractApp } from './AbstractApp';
 
@@ -23,7 +14,7 @@ export class App extends AbstractApp {
      *
      * @static
      */
-    static propTypes = AbstractApp.propTypes
+    static propTypes = AbstractApp.propTypes;
 
     /**
      * Initializes a new App instance.
@@ -34,124 +25,100 @@ export class App extends AbstractApp {
     constructor(props) {
         super(props);
 
-        /**
-         * Create an enhanced history that syncs navigation events with the
-         * store.
-         * @link https://github.com/reactjs/react-router-redux#how-it-works
-         */
-        this.history = syncHistoryWithStore(browserHistory, props.store);
+        this.state = {
+            ...this.state,
 
-        // Bind event handlers so they are only bound once for every instance.
-        this._onRouteEnter = this._onRouteEnter.bind(this);
-        this._routerCreateElement = this._routerCreateElement.bind(this);
+            /**
+             * The context root of window.location i.e. this Web App.
+             *
+             * @type {string}
+             */
+            windowLocationContextRoot: this._getWindowLocationContextRoot()
+        };
     }
 
     /**
-     * Temporarily, prevents the super from dispatching Redux actions until they
-     * are integrated into the Web App.
-     *
-     * @returns {void}
-     */
-    componentWillMount() {
-        // FIXME Do not override the super once the dispatching of Redux actions
-        // is integrated into the Web App.
-    }
-
-    /**
-     * Temporarily, prevents the super from dispatching Redux actions until they
-     * are integrated into the Web App.
-     *
-     * @returns {void}
-     */
-    componentWillUnmount() {
-        // FIXME Do not override the super once the dispatching of Redux actions
-        // is integrated into the Web App.
-    }
-
-    /**
-     * Implements React's {@link Component#render()}.
+     * Gets a Location object from the window with information about the current
+     * location of the document.
      *
      * @inheritdoc
-     * @returns {ReactElement}
      */
-    render() {
-        const routes = RouteRegistry.getRoutes();
+    getWindowLocation() {
+        return window.location;
+    }
 
-        return (
-            <Provider store = { this.props.store }>
-                <Router
-                    createElement = { this._routerCreateElement }
-                    history = { this.history }>
-                    { routes.map(r =>
-                        <Route
-                            component = { r.component }
-                            key = { r.component }
-                            path = { r.path } />
-                    ) }
-                </Router>
-            </Provider>
-        );
+    /**
+     * Gets the context root of this Web App from window.location.
+     *
+     * @private
+     * @returns {string} The context root of window.location i.e. this Web App.
+     */
+    _getWindowLocationContextRoot() {
+        return getLocationContextRoot(this.getWindowLocation());
     }
 
     /**
      * Navigates to a specific Route (via platform-specific means).
      *
      * @param {Route} route - The Route to which to navigate.
+     * @protected
      * @returns {void}
      */
     _navigate(route) {
-        let path = route.path;
-        const store = this.props.store;
+        let path;
 
-        // The syntax :room bellow is defined by react-router. It "matches a URL
-        // segment up to the next /, ?, or #. The matched string is called a
-        // param."
-        path
-            = path.replace(
-                /:room/g,
-                store.getState()['features/base/conference'].room);
+        if (route) {
+            path = route.path;
 
-        return store.dispatch(push(path));
+            const store = this._getStore();
+
+            // The syntax :room bellow is defined by react-router. It "matches a
+            // URL segment up to the next /, ?, or #. The matched string is
+            // called a param."
+            path
+                = path.replace(
+                    /:room/g,
+                    store.getState()['features/base/conference'].room);
+            path = this._routePath2WindowLocationPathname(path);
+        }
+
+        // Navigate to the specified Route.
+        const windowLocation = this.getWindowLocation();
+        let promise;
+
+        if (!route || windowLocation.pathname === path) {
+            // The browser is at the specified path already and what remains is
+            // to make this App instance aware of the route to be rendered at
+            // the current location.
+
+            // XXX Refer to the super's _navigate for an explanation why a
+            // Promise is returned.
+            promise = super._navigate(route);
+        } else {
+            // The browser must go to the specified location. Once the specified
+            // location becomes current, the App will be made aware of the route
+            // to be rendered at it.
+            windowLocation.pathname = path;
+        }
+
+        return promise || Promise.resolve();
     }
 
     /**
-     * Invoked by react-router to notify this App that a Route is about to be
-     * rendered.
+     * Converts a specific Route path to a window.location.pathname.
      *
+     * @param {string} path - A Route path to be converted to/represeted as a
+     * window.location.pathname.
      * @private
-     * @returns {void}
+     * @returns {string} A window.location.pathname-compatible representation of
+     * the specified Route path.
      */
-    _onRouteEnter() {
-        // XXX The following is mandatory. Otherwise, moving back & forward
-        // through the browser's history could leave this App on the Conference
-        // page without a room name.
+    _routePath2WindowLocationPathname(path) {
+        let pathname = this.state.windowLocationContextRoot;
 
-        // Our Router configuration (at the time of this writing) is such that
-        // each Route corresponds to a single URL. Hence, entering into a Route
-        // is like opening a URL.
+        pathname.endsWith('/') || (pathname += '/');
+        pathname += path.startsWith('/') ? path.substring(1) : path;
 
-        // XXX In order to unify work with URLs in web and native environments,
-        // we will construct URL here with correct domain from config.
-        const currentDomain = getDomain(this.props.store.getState);
-        const url
-            = new URL(window.location.pathname, `https://${currentDomain}`)
-                .toString();
-
-        this._openURL(url);
-    }
-
-    /**
-     * Create a ReactElement from the specified component and props on behalf of
-     * the associated Router.
-     *
-     * @param {Component} component - The component from which the ReactElement
-     * is to be created.
-     * @param {Object} props - The read-only React Component props with which
-     * the ReactElement is to be initialized.
-     * @private
-     * @returns {ReactElement}
-     */
-    _routerCreateElement(component, props) {
-        return this._createElement(component, props);
+        return pathname;
     }
 }

@@ -17,8 +17,8 @@
         flex-direction: column-reverse;
         flex-wrap: nowrap;
         position: relative;
-        z-index: 1;                     // Set z-index to make element visible
-        width: $hideFilmstripButtonWidth;
+        z-index: $zindex1; // Set z-index to make element visible.
+        width: $filmstripToggleButtonWidth;
 
         button {
             font-size: 14px;
@@ -50,27 +50,34 @@
         position:relative;
         height:196px;
         padding: 0;
-        /*The filmstrip should not be covered by the left toolbar*/
-        padding-left: $defaultToolbarSize + 5;
+        /* The filmstrip should not be covered by the left toolbar. */
         bottom: 0;
         width:auto;
-        border: $thumbnailsBorder solid transparent;
-        z-index: 5;
+        z-index: $filmstripVideosZ;
         transition: bottom 2s;
         overflow: visible !important;
-        /*!!!Removes the gap between the local video container and the remote
-        videos.*/
+        /*!!! Removes the gap between the local video container and the remote
+        videos. */
         font-size: 0pt;
+
+        &#remoteVideos {
+            border: $thumbnailsBorder solid transparent;
+            padding-left: $defaultToolbarSize + 5;
+       }
 
         &.hidden {
             bottom: -196px;
+        }
+
+        .remote-videos-container {
+            display: flex;
         }
 
         .videocontainer {
             display: none;
             position: relative;
             background-size: contain;
-            border: $thumbnailVideoBorder solid $thumbnailBorderColor;
+            border: $thumbnailVideoBorder solid transparent;
             border-radius: $borderRadius;
             margin: 0 $thumbnailVideoMargin;
 
@@ -79,8 +86,8 @@
             }
 
             /**
-            * Focused video thumbnail.
-            */
+             * Focused video thumbnail.
+             */
             &.videoContainerFocused {
                 transition-duration: 0.5s;
                 -webkit-transition-duration: 0.5s;
@@ -92,25 +99,43 @@
                 0 0 3px $videoThumbnailSelected !important;
             }
 
-            .remotevideomenu {
+            .remotevideomenu > .icon-menu {
                 display: none;
             }
 
+            .presence-label {
+                color: $participantNameColor;
+                font-size: 12px;
+                font-weight: 100;
+                left: 0;
+                margin: 0 auto;
+                overflow: hidden;
+                pointer-events: none;
+                position: absolute;
+                right: 0;
+                text-align: center;
+                text-overflow: ellipsis;
+                top: calc(50% + 30px);
+                white-space: nowrap;
+                width: 100%;
+                z-index: $zindex3;
+            }
+
             /**
-            * Hovered video thumbnail.
-            */
+             * Hovered video thumbnail.
+             */
             &:hover {
                 cursor: hand;
                 border: $thumbnailVideoBorder solid $videoThumbnailHovered;
                 box-shadow: inset 0 0 3px $videoThumbnailHovered,
                 0 0 3px $videoThumbnailHovered;
 
-                .remotevideomenu {
+                .remotevideomenu > .icon-menu {
                     display: inline-block;
                 }
             }
 
-            /* With TemasysWebRTC plugin <object/> element is used
+            /* With the TemasysWebRTC plugin <object/> element is used
             instead of <video/> */
             & > video,
             & > object {
@@ -119,6 +144,23 @@
                 object-fit: cover;
                 overflow: hidden;
             }
+        }
+    }
+
+    /**
+     * Style the filmstrip videos in filmstrip-only mode.
+     */
+    &__videos-filmstripOnly {
+        margin-top: auto;
+        margin-bottom: auto;
+    }
+
+    .remote-videos-container {
+        transition: opacity 1s;
+
+        &.hide-videos {
+            opacity: 0;
+            pointer-events: none;
         }
     }
 }

@@ -6,6 +6,34 @@ change references to that to match your host, and generate some passwords for
 
 There are also some complete [example config files](https://github.com/jitsi/jitsi-meet/tree/master/doc/example-config-files/) available, mentioned in each section.
 
+## Network description
+
+This how the network look like:
+```
+                   +                           +
+                   |                           |
+                   |                           |
+                   v                           |
+                  443                          |
+               +-------+                       |
+               |       |                       |
+               | NginX |                       |
+               |       |                       |
+               +--+-+--+                       |
+                  | |                          |
++------------+    | |    +--------------+      |
+|            |    | |    |              |      |
+| jitsi-meet +<---+ +--->+ prosody/xmpp |      |
+|            |files 5280 |              |      |
++------------+           +--------------+      v
+                     5222,5347^    ^5347      4443
+                +--------+    |    |    +-------------+
+                |        |    |    |    |             |
+                | jicofo +----^    ^----+ videobridge |
+                |        |              |             |
+                +--------+              +-------------+
+```
+
 ## Install prosody
 ```sh
 apt-get install prosody
@@ -27,6 +55,7 @@ VirtualHost "jitsi.example.com"
         "bosh";
         "pubsub";
     }
+    c2s_require_encryption = false
 ```
 - add domain with authentication for conference focus user:
 ```
@@ -76,7 +105,9 @@ Add a new file `jitsi.example.com` in `/etc/nginx/sites-available` (see also the
 server_names_hash_bucket_size 64;
 
 server {
-    listen 80;
+    listen 443;
+    # tls configuration that is not covered in this guide
+    # we recommend the use of https://certbot.eff.org/
     server_name jitsi.example.com;
     # set the root
     root /srv/jitsi.example.com;
@@ -131,9 +162,9 @@ Or autostart it by adding the line in `/etc/rc.local`:
 
 ## Install Jitsi Conference Focus (jicofo)
 
-Install JDK and Ant if missing:
+Install JDK and Maven if missing:
 ```
-apt-get install default-jdk ant
+apt-get install default-jdk maven
 ```
 
 _NOTE: When installing on older Debian releases keep in mind that you need JDK >= 1.7._
@@ -145,12 +176,14 @@ git clone https://github.com/jitsi/jicofo.git
 Build distribution package. Replace {os-name} with one of: 'lin', 'lin64', 'macosx', 'win', 'win64'.
 ```sh
 cd jicofo
-ant dist.{os-name}
+mvn package -DskipTests -Dassembly.skipAssembly=false
 ```
 Run jicofo:
 ```sh
-cd dist/{os-name}'
-./jicofo.sh --host=127.0.0.1 --domain=jitsi.example.com --secret=YOURSECRET2 --user_domain=auth.jitsi.example.com --user_name=focus --user_password=YOURSECRET3
+=======
+unzip target/jicofo-{os-name}-1.0-SNAPSHOT.zip
+cd jicofo-{os-name}-1.0-SNAPSHOT'
+./jicofo.sh --host=localhost --domain=jitsi.example.com --secret=YOURSECRET2 --user_domain=auth.jitsi.example.com --user_name=focus --user_password=YOURSECRET3
 ```
 
 ## Deploy Jitsi Meet
@@ -159,6 +192,8 @@ Checkout and configure Jitsi Meet:
 cd /srv
 git clone https://github.com/jitsi/jitsi-meet.git
 mv jitsi-meet/ jitsi.example.com
+npm install
+make
 ```
 
 Edit host names in `/srv/jitsi.example.com/config.js` (see also the example config file):
@@ -167,11 +202,11 @@ var config = {
     hosts: {
         domain: 'jitsi.example.com',
         muc: 'conference.jitsi.example.com',
-        bridge: 'jitsi-videobridge.jitsi.example.com'
+        bridge: 'jitsi-videobridge.jitsi.example.com',
+        focus: 'focus.jitsi.example.com'
     },
     useNicks: false,
     bosh: '//jitsi.example.com/http-bind', // FIXME: use xep-0156 for that
-    desktopSharing: 'false' // Desktop sharing method. Can be set to 'ext', 'webrtc' or false to disable.
     //chromeExtensionId: 'diibjkoicjeejcmhdnailmkgecihlobk', // Id of desktop streamer Chrome extension
     //minChromeExtVersion: '0.1' // Required version of Chrome extension
 };
@@ -203,23 +238,4 @@ You are now all set and ready to have your first meet by going to http://jitsi.e
 
 
 ## Enabling recording
-Currently recording is only supported for linux-64 and macos. To enable it, add
-the following properties to sip-communicator.properties:
-```
-org.jitsi.videobridge.ENABLE_MEDIA_RECORDING=true
-org.jitsi.videobridge.MEDIA_RECORDING_PATH=/path/to/recordings/dir
-org.jitsi.videobridge.MEDIA_RECORDING_TOKEN=secret
-```
-
-where /path/to/recordings/dir is the path to a pre-existing directory where recordings
-will be stored (needs to be writeable by the user running jitsi-videobridge),
-and "secret" is a string which will be used for authentication.
-
-Then, edit the Jitsi-Meet config.js file and set:
-```
-enableRecording: true
-```
-
-Restart jitsi-videobridge and start a new conference (making sure that the page
-is reloaded with the new config.js) -- the organizer of the conference should
-now have a "recording" button in the floating menu, near the "mute" button.
+[Jibri](https://github.com/jitsi/jibri)is a set of tools for recording and/or streaming a Jitsi Meet conference.

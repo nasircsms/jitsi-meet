@@ -1,8 +1,5 @@
-import { Symbol } from '../react';
-
 /**
- * The type of the Redux action which signals that a specific conference has
- * failed.
+ * The type of (redux) action which signals that a specific conference failed.
  *
  * {
  *     type: CONFERENCE_FAILED,
@@ -13,8 +10,8 @@ import { Symbol } from '../react';
 export const CONFERENCE_FAILED = Symbol('CONFERENCE_FAILED');
 
 /**
- * The type of the Redux action which signals that a specific conference has
- * been joined.
+ * The type of (redux) action which signals that a specific conference was
+ * joined.
  *
  * {
  *     type: CONFERENCE_JOINED,
@@ -24,8 +21,7 @@ export const CONFERENCE_FAILED = Symbol('CONFERENCE_FAILED');
 export const CONFERENCE_JOINED = Symbol('CONFERENCE_JOINED');
 
 /**
- * The type of the Redux action which signals that a specific conference has
- * been left.
+ * The type of (redux) action which signals that a specific conference was left.
  *
  * {
  *     type: CONFERENCE_LEFT,
@@ -35,7 +31,18 @@ export const CONFERENCE_JOINED = Symbol('CONFERENCE_JOINED');
 export const CONFERENCE_LEFT = Symbol('CONFERENCE_LEFT');
 
 /**
- * The type of the Redux action which signals that a specific conference will be
+ * The type of (redux) action which signals that a specific conference will be
+ * joined.
+ *
+ * {
+ *     type: CONFERENCE_WILL_JOIN,
+ *     conference: JitsiConference
+ * }
+ */
+export const CONFERENCE_WILL_JOIN = Symbol('CONFERENCE_WILL_JOIN');
+
+/**
+ * The type of (redux) action which signals that a specific conference will be
  * left.
  *
  * {
@@ -46,8 +53,8 @@ export const CONFERENCE_LEFT = Symbol('CONFERENCE_LEFT');
 export const CONFERENCE_WILL_LEAVE = Symbol('CONFERENCE_WILL_LEAVE');
 
 /**
- * The type of the Redux action which signals that the lock state of a specific
- * <tt>JitsiConference</tt> changed.
+ * The type of (redux) action which signals that the lock state of a specific
+ * {@code JitsiConference} changed.
  *
  * {
  *     type: LOCK_STATE_CHANGED,
@@ -58,8 +65,40 @@ export const CONFERENCE_WILL_LEAVE = Symbol('CONFERENCE_WILL_LEAVE');
 export const LOCK_STATE_CHANGED = Symbol('LOCK_STATE_CHANGED');
 
 /**
- * The type of the Redux action which sets the password to join or lock a
- * specific JitsiConference.
+ * The type of (redux) action which sets the audio-only flag for the current
+ * conference.
+ *
+ * {
+ *     type: SET_AUDIO_ONLY,
+ *     audioOnly: boolean
+ * }
+ */
+export const SET_AUDIO_ONLY = Symbol('SET_AUDIO_ONLY');
+
+/**
+ * The type of (redux) action to set whether or not the displayed large video is
+ * in high-definition.
+ *
+ * {
+ *     type: SET_LARGE_VIDEO_HD_STATUS,
+ *     isLargeVideoHD: boolean
+ * }
+ */
+export const SET_LARGE_VIDEO_HD_STATUS = Symbol('SET_LARGE_VIDEO_HD_STATUS');
+
+/**
+ * The type of (redux) action which sets the video channel's lastN (value).
+ *
+ * {
+ *     type: SET_LASTN,
+ *     lastN: number
+ * }
+ */
+export const SET_LASTN = Symbol('SET_LASTN');
+
+/**
+ * The type of (redux) action which sets the password to join or lock a specific
+ * {@code JitsiConference}.
  *
  * {
  *     type: SET_PASSWORD,
@@ -71,7 +110,18 @@ export const LOCK_STATE_CHANGED = Symbol('LOCK_STATE_CHANGED');
 export const SET_PASSWORD = Symbol('SET_PASSWORD');
 
 /**
- * The type of the Redux action which sets the name of the room of the
+ * The type of (redux) action which signals that setting a password on a
+ * {@code JitsiConference} failed (with an error).
+ *
+ * {
+ *     type: SET_PASSWORD_FAILED,
+ *     error: string
+ * }
+ */
+export const SET_PASSWORD_FAILED = Symbol('SET_PASSWORD_FAILED');
+
+/**
+ * The type of (redux) action which sets the name of the room of the
  * conference to be joined.
  *
  * {

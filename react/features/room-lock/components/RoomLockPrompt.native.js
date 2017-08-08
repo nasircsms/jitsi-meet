@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import Prompt from 'react-native-prompt';
 import { connect } from 'react-redux';
+import { Dialog } from '../../base/dialog';
 
 import { endRoomLockRequest } from '../actions';
 
@@ -22,7 +22,7 @@ class RoomLockPrompt extends Component {
          */
         conference: React.PropTypes.object,
         dispatch: React.PropTypes.func
-    }
+    };
 
     /**
      * Initializes a new RoomLockPrompt instance.
@@ -46,12 +46,11 @@ class RoomLockPrompt extends Component {
      */
     render() {
         return (
-            <Prompt
+            <Dialog
+                bodyKey = 'dialog.passwordLabel'
                 onCancel = { this._onCancel }
                 onSubmit = { this._onSubmit }
-                placeholder = 'Password'
-                title = 'Lock / Unlock room'
-                visible = { true } />
+                titleKey = 'toolbar.lock' />
         );
     }
 
@@ -59,12 +58,12 @@ class RoomLockPrompt extends Component {
      * Notifies this prompt that it has been dismissed by cancel.
      *
      * @private
-     * @returns {void}
+     * @returns {boolean} True to hide this dialog/prompt; otherwise, false.
      */
     _onCancel() {
         // An undefined password is understood to cancel the request to lock the
         // conference/room.
-        this._onSubmit(undefined);
+        return this._onSubmit(undefined);
     }
 
     /**
@@ -73,10 +72,14 @@ class RoomLockPrompt extends Component {
      *
      * @param {string} value - The submitted value.
      * @private
-     * @returns {void}
+     * @returns {boolean} False because we do not want to hide this
+     * dialog/prompt as the hiding will be handled inside endRoomLockRequest
+     * after setting the password is resolved.
      */
     _onSubmit(value) {
         this.props.dispatch(endRoomLockRequest(this.props.conference, value));
+
+        return false; // Do not hide.
     }
 }
 

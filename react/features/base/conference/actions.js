@@ -1,10 +1,13 @@
-import JitsiMeetJS from '../lib-jitsi-meet';
+import { JitsiConferenceEvents } from '../lib-jitsi-meet';
+import { setAudioMuted, setVideoMuted } from '../media';
 import {
-    changeParticipantEmail,
     dominantSpeakerChanged,
+    getLocalParticipant,
+    participantConnectionStatusChanged,
     participantJoined,
     participantLeft,
-    participantRoleChanged
+    participantRoleChanged,
+    participantUpdated
 } from '../participants';
 import { trackAdded, trackRemoved } from '../tracks';
 
@@ -12,15 +15,25 @@ import {
     CONFERENCE_FAILED,
     CONFERENCE_JOINED,
     CONFERENCE_LEFT,
+    CONFERENCE_WILL_JOIN,
     CONFERENCE_WILL_LEAVE,
     LOCK_STATE_CHANGED,
+    SET_AUDIO_ONLY,
+    SET_LARGE_VIDEO_HD_STATUS,
+    SET_LASTN,
     SET_PASSWORD,
+    SET_PASSWORD_FAILED,
     SET_ROOM
 } from './actionTypes';
-import { EMAIL_COMMAND } from './constants';
+import {
+    AVATAR_ID_COMMAND,
+    AVATAR_URL_COMMAND,
+    EMAIL_COMMAND,
+    JITSI_CONFERENCE_URL_KEY
+} from './constants';
 import { _addLocalTracksToConference } from './functions';
-import './middleware';
-import './reducer';
+
+import type { Dispatch } from 'redux';
 
 /**
  * Adds conference (event) listeners.
@@ -31,50 +44,106 @@ import './reducer';
  * @returns {void}
  */
 function _addConferenceListeners(conference, dispatch) {
-    const JitsiConferenceEvents = JitsiMeetJS.events.conference;
+    // Dispatches into features/base/conference follow:
 
     conference.on(
-            JitsiConferenceEvents.CONFERENCE_FAILED,
-            (...args) => dispatch(_conferenceFailed(conference, ...args)));
+        JitsiConferenceEvents.CONFERENCE_FAILED,
+        (...args) => dispatch(conferenceFailed(conference, ...args)));
     conference.on(
-            JitsiConferenceEvents.CONFERENCE_JOINED,
-            (...args) => dispatch(_conferenceJoined(conference, ...args)));
+        JitsiConferenceEvents.CONFERENCE_JOINED,
+        (...args) => dispatch(conferenceJoined(conference, ...args)));
     conference.on(
-            JitsiConferenceEvents.CONFERENCE_LEFT,
-            (...args) => dispatch(_conferenceLeft(conference, ...args)));
+        JitsiConferenceEvents.CONFERENCE_LEFT,
+        (...args) => dispatch(conferenceLeft(conference, ...args)));
 
     conference.on(
-            JitsiConferenceEvents.DOMINANT_SPEAKER_CHANGED,
-            (...args) => dispatch(dominantSpeakerChanged(...args)));
+        JitsiConferenceEvents.LOCK_STATE_CHANGED,
+        (...args) => dispatch(lockStateChanged(conference, ...args)));
+
+    // Dispatches into features/base/media follow:
 
     conference.on(
-            JitsiConferenceEvents.LOCK_STATE_CHANGED,
-            (...args) => dispatch(_lockStateChanged(conference, ...args)));
+        JitsiConferenceEvents.STARTED_MUTED,
+        () => {
+            // XXX Jicofo tells lib-jitsi-meet to start with audio and/or video
+            // muted i.e. Jicofo expresses an intent. Lib-jitsi-meet has turned
+            // Jicofo's intent into reality by actually muting the respective
+            // tracks. The reality is expressed in base/tracks already so what
+            // is left is to express Jicofo's intent in base/media.
+            // TODO Maybe the app needs to learn about Jicofo's intent and
+            // transfer that intent to lib-jitsi-meet instead of lib-jitsi-meet
+            // acting on Jicofo's intent without the app's knowledge.
+            dispatch(setAudioMuted(Boolean(conference.startAudioMuted)));
+            dispatch(setVideoMuted(Boolean(conference.startVideoMuted)));
+        });
+
+    // Dispatches into features/base/tracks follow:
 
     conference.on(
-            JitsiConferenceEvents.TRACK_ADDED,
-            t => t && !t.isLocal() && dispatch(trackAdded(t)));
+        JitsiConferenceEvents.TRACK_ADDED,
+        t => t && !t.isLocal() && dispatch(trackAdded(t)));
     conference.on(
-            JitsiConferenceEvents.TRACK_REMOVED,
-            t => t && !t.isLocal() && dispatch(trackRemoved(t)));
+        JitsiConferenceEvents.TRACK_REMOVED,
+        t => t && !t.isLocal() && dispatch(trackRemoved(t)));
+
+    // Dispatches into features/base/participants follow:
 
     conference.on(
-            JitsiConferenceEvents.USER_JOINED,
-            (id, user) => dispatch(participantJoined({
-                id,
-                name: user.getDisplayName(),
-                role: user.getRole()
-            })));
+        JitsiConferenceEvents.DOMINANT_SPEAKER_CHANGED,
+        (...args) => dispatch(dominantSpeakerChanged(...args)));
+
     conference.on(
-            JitsiConferenceEvents.USER_LEFT,
-            (...args) => dispatch(participantLeft(...args)));
+        JitsiConferenceEvents.PARTICIPANT_CONN_STATUS_CHANGED,
+        (...args) => dispatch(participantConnectionStatusChanged(...args)));
+
     conference.on(
-            JitsiConferenceEvents.USER_ROLE_CHANGED,
-            (...args) => dispatch(participantRoleChanged(...args)));
+        JitsiConferenceEvents.USER_JOINED,
+        (id, user) => dispatch(participantJoined({
+            id,
+            name: user.getDisplayName(),
+            role: user.getRole()
+        })));
+    conference.on(
+        JitsiConferenceEvents.USER_LEFT,
+        (...args) => dispatch(participantLeft(...args)));
+    conference.on(
+        JitsiConferenceEvents.USER_ROLE_CHANGED,
+        (...args) => dispatch(participantRoleChanged(...args)));
 
     conference.addCommandListener(
-            EMAIL_COMMAND,
-            (data, id) => dispatch(changeParticipantEmail(id, data.value)));
+        AVATAR_ID_COMMAND,
+        (data, id) => dispatch(participantUpdated({
+            id,
+            avatarID: data.value
+        })));
+    conference.addCommandListener(
+        AVATAR_URL_COMMAND,
+        (data, id) => dispatch(participantUpdated({
+            id,
+            avatarURL: data.value
+        })));
+    conference.addCommandListener(
+        EMAIL_COMMAND,
+        (data, id) => dispatch(participantUpdated({
+            id,
+            email: data.value
+        })));
+}
+
+/**
+ * Sets the data for the local participant to the conference.
+ *
+ * @param {JitsiConference} conference - The JitsiConference instance.
+ * @param {Object} state - The Redux state.
+ * @returns {void}
+ */
+function _setLocalParticipantData(conference, state) {
+    const { avatarID } = getLocalParticipant(state);
+
+    conference.removeCommand(AVATAR_ID_COMMAND);
+    conference.sendCommand(AVATAR_ID_COMMAND, {
+        value: avatarID
+    });
 }
 
 /**
@@ -88,8 +157,9 @@ function _addConferenceListeners(conference, dispatch) {
  *     conference: JitsiConference,
  *     error: string
  * }}
+ * @public
  */
-function _conferenceFailed(conference, error) {
+export function conferenceFailed(conference, error) {
     return {
         type: CONFERENCE_FAILED,
         conference,
@@ -98,14 +168,49 @@ function _conferenceFailed(conference, error) {
 }
 
 /**
- * Attach any pre-existing local media to the conference once the conference has
- * been joined.
+ * Signals that a specific conference has been joined.
  *
  * @param {JitsiConference} conference - The JitsiConference instance which was
  * joined by the local participant.
+ * @returns {{
+ *     type: CONFERENCE_JOINED,
+ *     conference: JitsiConference
+ * }}
+ */
+export function conferenceJoined(conference) {
+    return {
+        type: CONFERENCE_JOINED,
+        conference
+    };
+}
+
+/**
+ * Signals that a specific conference has been left.
+ *
+ * @param {JitsiConference} conference - The JitsiConference instance which was
+ * left by the local participant.
+ * @returns {{
+ *     type: CONFERENCE_LEFT,
+ *     conference: JitsiConference
+ * }}
+ */
+export function conferenceLeft(conference) {
+    return {
+        type: CONFERENCE_LEFT,
+        conference
+    };
+}
+
+/**
+ * Attaches any pre-existing local media to the conference, before
+ * the conference will be joined. Then signals the intention of the application
+ * to have the local participant join a specific conference.
+ *
+ * @param {JitsiConference} conference - The JitsiConference instance the
+ * local participant will (try to) join.
  * @returns {Function}
  */
-function _conferenceJoined(conference) {
+function _conferenceWillJoin(conference) {
     return (dispatch, getState) => {
         const localTracks
             = getState()['features/base/tracks']
@@ -117,26 +222,9 @@ function _conferenceJoined(conference) {
         }
 
         dispatch({
-            type: CONFERENCE_JOINED,
+            type: CONFERENCE_WILL_JOIN,
             conference
         });
-    };
-}
-
-/**
- * Signals that a specific conference has been left.
- *
- * @param {JitsiConference} conference - The JitsiConference instance which was
- * left by the local participant.
- * @returns {{
- *      type: CONFERENCE_LEFT,
- *      conference: JitsiConference
- *  }}
- */
-function _conferenceLeft(conference) {
-    return {
-        type: CONFERENCE_LEFT,
-        conference
     };
 }
 
@@ -149,9 +237,9 @@ function _conferenceLeft(conference) {
  * @param {JitsiConference} conference - The JitsiConference instance which will
  * be left by the local participant.
  * @returns {{
- *      type: CONFERENCE_LEFT,
- *      conference: JitsiConference
- *  }}
+ *     type: CONFERENCE_LEFT,
+ *     conference: JitsiConference
+ * }}
  */
 export function conferenceWillLeave(conference) {
     return {
@@ -168,23 +256,31 @@ export function conferenceWillLeave(conference) {
 export function createConference() {
     return (dispatch, getState) => {
         const state = getState();
-        const connection = state['features/base/connection'].connection;
+        const { connection, locationURL } = state['features/base/connection'];
 
         if (!connection) {
-            throw new Error('Cannot create conference without connection');
+            throw new Error('Cannot create a conference without a connection!');
         }
 
         const { password, room } = state['features/base/conference'];
 
-        if (typeof room === 'undefined' || room === '') {
-            throw new Error('Cannot join conference without room name');
+        if (!room) {
+            throw new Error('Cannot join a conference without a room name!');
         }
 
-        // TODO Take options from config.
         const conference
-            = connection.initJitsiConference(room, { openSctp: true });
+            = connection.initJitsiConference(
+
+                // XXX Lib-jitsi-meet does not accept uppercase letters.
+                room.toLowerCase(),
+                state['features/base/config']);
+
+        conference[JITSI_CONFERENCE_URL_KEY] = locationURL;
+        dispatch(_conferenceWillJoin(conference));
 
         _addConferenceListeners(conference, dispatch);
+
+        _setLocalParticipantData(conference, state);
 
         conference.join(password);
     };
@@ -203,11 +299,74 @@ export function createConference() {
  *     locked: boolean
  * }}
  */
-function _lockStateChanged(conference, locked) {
+export function lockStateChanged(conference, locked) {
     return {
         type: LOCK_STATE_CHANGED,
         conference,
         locked
+    };
+}
+
+/**
+ * Sets the audio-only flag for the current JitsiConference.
+ *
+ * @param {boolean} audioOnly - True if the conference should be audio only;
+ * false, otherwise.
+ * @returns {{
+ *     type: SET_AUDIO_ONLY,
+ *     audioOnly: boolean
+ * }}
+ */
+export function setAudioOnly(audioOnly) {
+    return {
+        type: SET_AUDIO_ONLY,
+        audioOnly
+    };
+}
+
+/**
+ * Action to set whether or not the currently displayed large video is in
+ * high-definition.
+ *
+ * @param {boolean} isLargeVideoHD - True if the large video is high-definition.
+ * @returns {{
+ *     type: SET_LARGE_VIDEO_HD_STATUS,
+ *     isLargeVideoHD: boolean
+ * }}
+ */
+export function setLargeVideoHDStatus(isLargeVideoHD) {
+    return {
+        type: SET_LARGE_VIDEO_HD_STATUS,
+        isLargeVideoHD
+    };
+}
+
+/**
+ * Sets the video channel's last N (value) of the current conference. A value of
+ * undefined shall be used to reset it to the default value.
+ *
+ * @param {(number|undefined)} lastN - The last N value to be set.
+ * @returns {Function}
+ */
+export function setLastN(lastN: ?number) {
+    return (dispatch: Dispatch<*>, getState: Function) => {
+        if (typeof lastN === 'undefined') {
+            const config = getState()['features/base/config'];
+
+            /* eslint-disable no-param-reassign */
+
+            lastN = config.channelLastN;
+            if (typeof lastN === 'undefined') {
+                lastN = -1;
+            }
+
+            /* eslint-enable no-param-reassign */
+        }
+
+        dispatch({
+            type: SET_LASTN,
+            lastN
+        });
     };
 }
 
@@ -265,7 +424,12 @@ export function setPassword(conference, method, password) {
                             conference,
                             method,
                             password
-                        })));
+                        }))
+                        .catch(error => dispatch({
+                            type: SET_PASSWORD_FAILED,
+                            error
+                        }))
+                );
             }
 
             return Promise.reject();
@@ -280,13 +444,26 @@ export function setPassword(conference, method, password) {
  * @param {(string|undefined)} room - The name of the room of the conference to
  * be joined.
  * @returns {{
- *      type: SET_ROOM,
- *      room: string
- *  }}
+ *     type: SET_ROOM,
+ *     room: string
+ * }}
  */
 export function setRoom(room) {
     return {
         type: SET_ROOM,
         room
+    };
+}
+
+/**
+ * Toggles the audio-only flag for the current JitsiConference.
+ *
+ * @returns {Function}
+ */
+export function toggleAudioOnly() {
+    return (dispatch: Dispatch<*>, getState: Function) => {
+        const { audioOnly } = getState()['features/base/conference'];
+
+        return dispatch(setAudioOnly(!audioOnly));
     };
 }

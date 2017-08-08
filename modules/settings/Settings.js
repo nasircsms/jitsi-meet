@@ -3,13 +3,7 @@ const logger = require("jitsi-meet-logger").getLogger(__filename);
 
 import UIUtil from '../UI/util/UIUtil';
 import jitsiLocalStorage from '../util/JitsiLocalStorage';
-
-function generateUniqueId() {
-    function _p8() {
-        return (Math.random().toString(16) + "000000000").substr(2, 8);
-    }
-    return _p8() + _p8() + _p8() + _p8();
-}
+import { randomHexString } from '../../react/features/base/util';
 
 let avatarUrl = '';
 
@@ -17,14 +11,13 @@ let email = UIUtil.unescapeHtml(jitsiLocalStorage.getItem("email") || '');
 let avatarId = UIUtil.unescapeHtml(jitsiLocalStorage.getItem("avatarId") || '');
 if (!avatarId) {
     // if there is no avatar id, we generate a unique one and use it forever
-    avatarId = generateUniqueId();
+    avatarId = randomHexString(32);
     jitsiLocalStorage.setItem("avatarId", avatarId);
 }
 
 let localFlipX = JSON.parse(jitsiLocalStorage.getItem("localFlipX") || true);
 let displayName = UIUtil.unescapeHtml(
     jitsiLocalStorage.getItem("displayname") || '');
-let language = jitsiLocalStorage.getItem("language");
 let cameraDeviceId = jitsiLocalStorage.getItem("cameraDeviceId") || '';
 let micDeviceId = jitsiLocalStorage.getItem("micDeviceId") || '';
 let welcomePageDisabled = JSON.parse(
@@ -111,14 +104,6 @@ export default {
      */
     getAvatarUrl: function () {
         return avatarUrl;
-    },
-
-    getLanguage () {
-        return language;
-    },
-    setLanguage: function (lang) {
-        language = lang;
-        jitsiLocalStorage.setItem("language", lang);
     },
 
     /**

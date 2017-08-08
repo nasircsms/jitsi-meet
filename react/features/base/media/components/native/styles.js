@@ -1,24 +1,15 @@
 import { StyleSheet } from 'react-native';
 
 /**
- * Make video element fill its container.
+ * Make {@code Video} fill its container.
  */
 const video = {
     flex: 1
 };
 
 /**
- * Transform local videos to behave like a mirror.
+ * The styles of the feature base/media.
  */
-const mirroredVideo = {
-    ...video,
-    transform: [ { scaleX: -1 } ]
-};
-
-/**
- * Native-specific styles for media components.
- */
-export const styles = StyleSheet.create({
-    mirroredVideo,
+export default StyleSheet.create({
     video
 });
