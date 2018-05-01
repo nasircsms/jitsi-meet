@@ -1,6 +1,15 @@
+// @flow
+import md5 from 'js-md5';
+
+import { toState } from '../redux';
+
+import {
+    DEFAULT_AVATAR_RELATIVE_PATH,
+    LOCAL_PARTICIPANT_DEFAULT_ID
+} from './constants';
+
 declare var config: Object;
 declare var interfaceConfig: Object;
-declare var MD5: Object;
 
 /**
  * Returns the URL of the image for the avatar of a specific participant.
@@ -11,19 +20,21 @@ declare var MD5: Object;
  * @param {string} [participant.avatarURL] - Participant's avatar URL.
  * @param {string} [participant.email] - Participant's e-mail address.
  * @param {string} [participant.id] - Participant's ID.
+ * @public
  * @returns {string} The URL of the image for the avatar of the specified
  * participant.
- *
- * @public
  */
-export function getAvatarURL(participant) {
+export function getAvatarURL({ avatarID, avatarURL, email, id }: {
+        avatarID: string,
+        avatarURL: string,
+        email: string,
+        id: string
+}) {
     // If disableThirdPartyRequests disables third-party avatar services, we are
     // restricted to a stock image of ours.
     if (typeof config === 'object' && config.disableThirdPartyRequests) {
-        return 'images/avatar2.png';
+        return DEFAULT_AVATAR_RELATIVE_PATH;
     }
-
-    const { avatarID, avatarURL, email, id } = participant;
 
     // If an avatarURL is specified, then obviously there's nothing to generate.
     if (avatarURL) {
@@ -57,26 +68,49 @@ export function getAvatarURL(participant) {
         if (urlPrefix) {
             urlSuffix = interfaceConfig.RANDOM_AVATAR_URL_SUFFIX;
         } else {
-            // Otherwise, use a default (of course).
-            urlPrefix = 'https://api.adorable.io/avatars/200/';
-            urlSuffix = '.png';
+            // Otherwise, use a default (meeples, of course).
+            urlPrefix = 'https://abotars.jitsi.net/meeple/';
+            urlSuffix = '';
         }
     }
 
-    return urlPrefix + MD5.hexdigest(key.trim().toLowerCase()) + urlSuffix;
+    return urlPrefix + md5.hex(key.trim().toLowerCase()) + urlSuffix;
+}
+
+/**
+ * Returns the avatarURL for the participant associated with the passed in
+ * participant ID.
+ *
+ * @param {(Function|Object|Participant[])} stateful - The redux state
+ * features/base/participants, the (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
+ * @param {string} id - The ID of the participant to retrieve.
+ * @param {boolean} isLocal - An optional parameter indicating whether or not
+ * the partcipant id is for the local user. If true, a different logic flow is
+ * used find the local user, ignoring the id value as it can change through the
+ * beginning and end of a call.
+ * @returns {(string|undefined)}
+ */
+export function getAvatarURLByParticipantId(
+        stateful: Object | Function,
+        id: string = LOCAL_PARTICIPANT_DEFAULT_ID) {
+    const participant = getParticipantById(stateful, id);
+
+    return participant && getAvatarURL(participant);
 }
 
 /**
  * Returns local participant from Redux state.
  *
- * @param {(Function|Object|Participant[])} stateOrGetState - The redux state
+ * @param {(Function|Object|Participant[])} stateful - The redux state
  * features/base/participants, the (whole) redux state, or redux's
- * {@code getState} function to be used to retrieve the
- * features/base/participants state.
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
  * @returns {(Participant|undefined)}
  */
-export function getLocalParticipant(stateOrGetState) {
-    const participants = _getParticipants(stateOrGetState);
+export function getLocalParticipant(stateful: Object | Function) {
+    const participants = _getAllParticipants(stateful);
 
     return participants.find(p => p.local);
 }
@@ -84,39 +118,109 @@ export function getLocalParticipant(stateOrGetState) {
 /**
  * Returns participant by ID from Redux state.
  *
- * @param {(Function|Object|Participant[])} stateOrGetState - The redux state
+ * @param {(Function|Object|Participant[])} stateful - The redux state
  * features/base/participants, the (whole) redux state, or redux's
- * {@code getState} function to be used to retrieve the
- * features/base/participants state.
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
  * @param {string} id - The ID of the participant to retrieve.
  * @private
  * @returns {(Participant|undefined)}
  */
-export function getParticipantById(stateOrGetState, id) {
-    const participants = _getParticipants(stateOrGetState);
+export function getParticipantById(
+        stateful: Object | Function,
+        id: string) {
+    const participants = _getAllParticipants(stateful);
 
     return participants.find(p => p.id === id);
 }
 
 /**
+ * Returns a count of the known participants in the passed in redux state,
+ * excluding any fake participants.
+ *
+ * @param {(Function|Object|Participant[])} stateful - The redux state
+ * features/base/participants, the (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
+ * @returns {number}
+ */
+export function getParticipantCount(stateful: Object | Function) {
+    return getParticipants(stateful).length;
+}
+
+/**
+ * Returns participant's display name.
+ * FIXME: remove the hardcoded strings once interfaceConfig is stored in redux
+ * and merge with a similarly named method in conference.js.
+ *
+ * @param {(Function|Object)} stateful - The (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state.
+ * @param {string} id - The ID of the participant's display name to retrieve.
+ * @private
+ * @returns {string}
+ */
+export function getParticipantDisplayName(
+        stateful: Object | Function,
+        id: string) {
+    const participant = getParticipantById(stateful, id);
+
+    if (participant) {
+        if (participant.name) {
+            return participant.name;
+        }
+
+        if (participant.local) {
+            return typeof interfaceConfig === 'object'
+                ? interfaceConfig.DEFAULT_LOCAL_DISPLAY_NAME
+                : 'me';
+        }
+    }
+
+    return typeof interfaceConfig === 'object'
+        ? interfaceConfig.DEFAULT_REMOTE_DISPLAY_NAME
+        : 'Fellow Jitster';
+}
+
+/**
+ * Selectors for getting all known participants with fake participants filtered
+ * out.
+ *
+ * @param {(Function|Object|Participant[])} stateful - The redux state
+ * features/base/participants, the (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
+ * @returns {Participant[]}
+ */
+export function getParticipants(stateful: Object | Function) {
+    return _getAllParticipants(stateful).filter(p => !p.isBot);
+}
+
+/**
+ * Returns the participant which has its pinned state set to truthy.
+ *
+ * @param {(Function|Object|Participant[])} stateful - The redux state
+ * features/base/participants, the (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
+ * @returns {(Participant|undefined)}
+ */
+export function getPinnedParticipant(stateful: Object | Function) {
+    return _getAllParticipants(stateful).find(p => p.pinned);
+}
+
+/**
  * Returns array of participants from Redux state.
  *
- * @param {(Function|Object|Participant[])} stateOrGetState - The redux state
+ * @param {(Function|Object|Participant[])} stateful - The redux state
  * features/base/participants, the (whole) redux state, or redux's
- * {@code getState} function to be used to retrieve the
- * features/base/participants state.
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
  * @private
  * @returns {Participant[]}
  */
-function _getParticipants(stateOrGetState) {
-    if (Array.isArray(stateOrGetState)) {
-        return stateOrGetState;
-    }
-
-    const state
-        = typeof stateOrGetState === 'function'
-            ? stateOrGetState()
-            : stateOrGetState;
-
-    return state['features/base/participants'] || [];
+function _getAllParticipants(stateful) {
+    return (
+        Array.isArray(stateful)
+            ? stateful
+            : toState(stateful)['features/base/participants'] || []);
 }

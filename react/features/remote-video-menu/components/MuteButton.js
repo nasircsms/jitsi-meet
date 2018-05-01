@@ -1,8 +1,16 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+import { connect } from 'react-redux';
 
+import {
+    createRemoteVideoMenuButtonEvent,
+    sendAnalytics
+} from '../../analytics';
 import { translate } from '../../base/i18n';
+import { openDialog } from '../../base/dialog';
 
 import RemoteVideoMenuButton from './RemoteVideoMenuButton';
+import MuteRemoteParticipantDialog from './MuteRemoteParticipantDialog';
 
 /**
  * Implements a React {@link Component} which displays a button for audio muting
@@ -18,25 +26,44 @@ class MuteButton extends Component {
      */
     static propTypes = {
         /**
-         * Whether or not the participant is currently audio muted.
+         * Invoked to send a request for muting the participant with the passed
+         * in participantID.
          */
-        isAudioMuted: React.PropTypes.bool,
+        dispatch: PropTypes.func,
 
         /**
-         * The callback to invoke when the component is clicked.
+         * Whether or not the participant is currently audio muted.
          */
-        onClick: React.PropTypes.func,
+        isAudioMuted: PropTypes.bool,
+
+        /**
+         * Callback to invoke when {@code MuteButton} is clicked.
+         */
+        onClick: PropTypes.func,
 
         /**
          * The ID of the participant linked to the onClick callback.
          */
-        participantID: React.PropTypes.string,
+        participantID: PropTypes.string,
 
         /**
          * Invoked to obtain translated strings.
          */
-        t: React.PropTypes.func
+        t: PropTypes.func
     };
+
+    /**
+     * Initializes a new {@code MuteButton} instance.
+     *
+     * @param {Object} props - The read-only React Component props with which
+     * the new instance is to be initialized.
+     */
+    constructor(props) {
+        super(props);
+
+        // Bind event handlers so they are only bound once for every instance.
+        this._onClick = this._onClick.bind(this);
+    }
 
     /**
      * Implements React's {@link Component#render()}.
@@ -45,7 +72,7 @@ class MuteButton extends Component {
      * @returns {ReactElement}
      */
     render() {
-        const { isAudioMuted, onClick, participantID, t } = this.props;
+        const { isAudioMuted, participantID, t } = this.props;
         const muteConfig = isAudioMuted ? {
             translationKey: 'videothumbnail.muted',
             muteClassName: 'mutelink disabled'
@@ -60,9 +87,32 @@ class MuteButton extends Component {
                 displayClass = { muteConfig.muteClassName }
                 iconClass = 'icon-mic-disabled'
                 id = { `mutelink_${participantID}` }
-                onClick = { onClick } />
+                onClick = { this._onClick } />
         );
+    }
+
+    /**
+     * Dispatches a request to mute the participant with the passed in
+     * participantID.
+     *
+     * @private
+     * @returns {void}
+     */
+    _onClick() {
+        const { dispatch, onClick, participantID } = this.props;
+
+        sendAnalytics(createRemoteVideoMenuButtonEvent(
+            'mute.button',
+            {
+                'participant_id': participantID
+            }));
+
+        dispatch(openDialog(MuteRemoteParticipantDialog, { participantID }));
+
+        if (onClick) {
+            onClick();
+        }
     }
 }
 
-export default translate(MuteButton);
+export default translate(connect()(MuteButton));

@@ -1,3 +1,5 @@
+/* @flow */
+
 import type { Dispatch } from 'redux';
 
 import JitsiMeetJS from './_';
@@ -5,10 +7,12 @@ import {
     LIB_DID_DISPOSE,
     LIB_DID_INIT,
     LIB_INIT_ERROR,
+    LIB_INIT_PROMISE_CREATED,
     LIB_WILL_DISPOSE,
     LIB_WILL_INIT,
     SET_WEBRTC_READY
 } from './actionTypes';
+import { isAnalyticsEnabled } from './functions';
 
 declare var APP: Object;
 
@@ -34,26 +38,34 @@ export function disposeLib() {
  * @returns {Function}
  */
 export function initLib() {
-    return (dispatch: Dispatch<*>, getState: Function) => {
+    return (dispatch: Dispatch<*>, getState: Function): Promise<void> => {
         const config = getState()['features/base/config'];
 
         if (!config) {
             throw new Error('Cannot init lib-jitsi-meet without config');
         }
 
-        // FIXME Until the logic of conference.js is rewritten into the React
-        // app we, JitsiMeetJS.init is to not be used for the React app.
-        if (typeof APP !== 'undefined') {
-            return Promise.resolve();
-        }
-
         dispatch({ type: LIB_WILL_INIT });
 
+        const initPromise = JitsiMeetJS.init({
+            enableAnalyticsLogging: isAnalyticsEnabled(getState),
+            ...config
+        });
+
+        dispatch({
+            type: LIB_INIT_PROMISE_CREATED,
+            initPromise
+        });
+
         return (
-            JitsiMeetJS.init(config)
+            initPromise
                 .then(() => dispatch({ type: LIB_DID_INIT }))
                 .catch(error => {
-                    dispatch(libInitError(error));
+                    // TODO: See the comment in the connect action in
+                    // base/connection/actions.web.js.
+                    if (typeof APP === 'undefined') {
+                        dispatch(libInitError(error));
+                    }
 
                     // TODO Handle LIB_INIT_ERROR error somewhere instead.
                     console.error('lib-jitsi-meet failed to init:', error);
@@ -91,7 +103,7 @@ export function libInitError(error: Error) {
  * @returns {Function}
  */
 export function setWebRTCReady(webRTCReady: boolean | Promise<*>) {
-    return (dispatch: Dispatch<*>, getState: Function) => {
+    return (dispatch: Function, getState: Function) => {
         if (getState()['features/base/lib-jitsi-meet'].webRTCReady
                 !== webRTCReady) {
             dispatch({

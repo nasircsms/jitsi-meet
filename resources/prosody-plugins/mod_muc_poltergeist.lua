@@ -6,7 +6,9 @@ local parse = neturl.parseQuery;
 local st = require "util.stanza";
 local get_room_from_jid = module:require "util".get_room_from_jid;
 local wrap_async_run = module:require "util".wrap_async_run;
+local update_presence_identity = module:require "util".update_presence_identity;
 local timer = require "util.timer";
+local MUC_NS = "http://jabber.org/protocol/muc";
 
 -- Options
 local poltergeist_component
@@ -113,8 +115,9 @@ end
 -- @param token the token we received
 -- @param room_name the room name
 -- @param group name of the group (optional)
+-- @param session the session to use for storing token specific fields
 -- @return true if values are ok or false otherwise
-function verify_token(token, room_name, group)
+function verify_token(token, room_name, group, session)
     if disableTokenVerification then
         return true;
     end
@@ -128,7 +131,6 @@ function verify_token(token, room_name, group)
         return false;
     end
 
-    local session = {};
     session.auth_token = token;
     local verified, reason = token_util:process_and_verify_token(session);
     if not verified then
@@ -181,6 +183,9 @@ prosody.events.add_handler("pre-jitsi-authentication", function(session)
         -- we will mark it with ignore tag
         local nick = string.sub(username, 0, 8);
         if (have_poltergeist_occupant(room, nick)) then
+            -- notify that user connected using the poltergeist
+            update_poltergeist_occupant_status(
+                room, nick, "connected");
             remove_poltergeist_occupant(room, nick, true);
         end
 
@@ -196,13 +201,14 @@ end);
 -- @param name the display name fot the occupant (optional)
 -- @param avatar the avatar to use for the new occupant (optional)
 -- @param status the initial status to use for the new occupant (optional)
-function create_poltergeist_occupant(room, nick, name, avatar, status)
-    log("debug", "create_poltergeist_occupant %s:", nick);
+-- @param context the information that we will store for this poltergeist
+function create_poltergeist_occupant(room, nick, name, avatar, status, context)
+    log("debug", "create_poltergeist_occupant %s", nick);
     -- Join poltergeist occupant to room, with the invited JID as their nick
     local join_presence = st.presence({
         to = room.jid.."/"..nick,
         from = poltergeist_component.."/"..nick
-    }):tag("x", { xmlns = "http://jabber.org/protocol/muc" }):up();
+    }):tag("x", { xmlns = MUC_NS }):up();
 
     if (name) then
         join_presence:tag(
@@ -215,6 +221,21 @@ function create_poltergeist_occupant(room, nick, name, avatar, status)
     if (status) then
         join_presence:tag("status"):text(status):up();
     end
+
+    -- If the room has a password set, let the poltergeist enter using it
+    local room_password = room:get_password();
+    if room_password then
+        local join = join_presence:get_child("x", MUC_NS);
+        join:tag("password", { xmlns = MUC_NS }):text(room_password);
+    end
+
+    update_presence_identity(
+        join_presence,
+        context.user,
+        context.group,
+        context.creator_user,
+        context.creator_group
+    );
 
     room:handle_first_presence(
         prosody.hosts[poltergeist_component], join_presence);
@@ -379,8 +400,9 @@ function handle_create_poltergeist (event)
     local name = params["name"];
     local avatar = params["avatar"];
     local status = params["status"];
+    local session = {};
 
-    if not verify_token(params["token"], room_name, group) then
+    if not verify_token(params["token"], room_name, group, session) then
         return 403;
     end
 
@@ -390,13 +412,27 @@ function handle_create_poltergeist (event)
         return 404;
     end
 
-    local username = generate_uuid();
-    store_username(room, user_id, username)
-
-    create_poltergeist_occupant(
-        room, string.sub(username,0,8), name, avatar, status);
-
-    return 200;
+    local username = get_username(room, user_id);
+    if (username ~= nil
+        and have_poltergeist_occupant(room, string.sub(username, 0, 8))) then
+        log("warn", "poltergeist for username:%s already in the room:%s",
+            username, room_name);
+        return 202;
+    else
+        username = generate_uuid();
+        store_username(room, user_id, username);
+        local context = {
+            user = {
+                id = user_id;
+            };
+            group = group;
+            creator_user = session.jitsi_meet_context_user;
+            creator_group = session.jitsi_meet_context_group;
+        };
+        create_poltergeist_occupant(
+            room, string.sub(username, 0, 8), name, avatar, status, context);
+        return 200;
+    end
 end
 
 --- Handles request for updating poltergeists status
@@ -413,7 +449,7 @@ function handle_update_poltergeist (event)
     local group = params["group"];
     local status = params["status"];
 
-    if not verify_token(params["token"], room_name, group) then
+    if not verify_token(params["token"], room_name, group, {}) then
         return 403;
     end
 
@@ -450,7 +486,7 @@ function handle_remove_poltergeist (event)
     local room_name = params["room"];
     local group = params["group"];
 
-    if not verify_token(params["token"], room_name, group) then
+    if not verify_token(params["token"], room_name, group, {}) then
         return 403;
     end
 

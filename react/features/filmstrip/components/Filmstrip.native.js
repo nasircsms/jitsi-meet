@@ -1,13 +1,45 @@
-/* @flow */
+// @flow
 
 import React, { Component } from 'react';
 import { ScrollView } from 'react-native';
 import { connect } from 'react-redux';
 
 import { Container } from '../../base/react';
+import {
+    isNarrowAspectRatio,
+    makeAspectRatioAware
+} from '../../base/responsive-ui';
 
+import LocalThumbnail from './LocalThumbnail';
+import styles from './styles';
 import Thumbnail from './Thumbnail';
-import { styles } from './_';
+
+/**
+ * Filmstrip component's property types.
+ */
+type Props = {
+
+    /**
+     * The indicator which determines whether the filmstrip is enabled.
+     *
+     * @private
+     */
+    _enabled: boolean,
+
+    /**
+     * The participants in the conference.
+     *
+     * @private
+     */
+    _participants: Array<any>,
+
+    /**
+     * The indicator which determines whether the filmstrip is visible.
+     *
+     * @private
+     */
+    _visible: boolean
+};
 
 /**
  * Implements a React {@link Component} which represents the filmstrip on
@@ -15,30 +47,7 @@ import { styles } from './_';
  *
  * @extends Component
  */
-class Filmstrip extends Component {
-    /**
-     * Filmstrip component's property types.
-     *
-     * @static
-     */
-    static propTypes = {
-        /**
-         * The participants in the conference.
-         *
-         * @private
-         * @type {Participant[]}
-         */
-        _participants: React.PropTypes.array,
-
-        /**
-         * The indicator which determines whether the filmstrip is visible.
-         *
-         * @private
-         * @type {boolean}
-         */
-        _visible: React.PropTypes.bool.isRequired
-    };
-
+class Filmstrip extends Component<Props> {
     /**
      * Implements React's {@link Component#render()}.
      *
@@ -46,60 +55,73 @@ class Filmstrip extends Component {
      * @returns {ReactElement}
      */
     render() {
+        if (!this.props._enabled) {
+            return null;
+        }
+
+        const isNarrowAspectRatio_ = isNarrowAspectRatio(this);
+        const filmstripStyle
+            = isNarrowAspectRatio_
+                ? styles.filmstripNarrow
+                : styles.filmstripWide;
+
         return (
             <Container
-                style = { styles.filmstrip }
+                style = { filmstripStyle }
                 visible = { this.props._visible }>
+                {
+                    !isNarrowAspectRatio_ && <LocalThumbnail />
+                }
                 <ScrollView
-
-                    // eslint-disable-next-line react/jsx-curly-spacing
-                    contentContainerStyle = {
-                        styles.filmstripScrollViewContentContainer
-                    } // eslint-disable-line react/jsx-curly-spacing
-                    horizontal = { true }
+                    horizontal = { isNarrowAspectRatio_ }
                     showsHorizontalScrollIndicator = { false }
-                    showsVerticalScrollIndicator = { false }>
+                    showsVerticalScrollIndicator = { false }
+                    style = { styles.scrollView } >
                     {
-                        this._sort(this.props._participants)
+                        /* eslint-disable react/jsx-wrap-multilines */
+
+                        this._sort(
+                                this.props._participants,
+                                isNarrowAspectRatio_)
                             .map(p =>
                                 <Thumbnail
                                     key = { p.id }
                                     participant = { p } />)
+
+                        /* eslint-enable react/jsx-wrap-multilines */
                     }
                 </ScrollView>
+                {
+                    isNarrowAspectRatio_ && <LocalThumbnail />
+                }
             </Container>
         );
     }
 
     /**
-     * Sorts a specific array of <tt>Participant</tt>s in display order.
+     * Sorts a specific array of {@code Participant}s in display order.
      *
-     * @param {Participant[]} participants - The array of <tt>Participant</tt>s
+     * @param {Participant[]} participants - The array of {@code Participant}s
      * to sort in display order.
+     * @param {boolean} isNarrowAspectRatio_ - Indicates if the aspect ratio is
+     * wide or narrow.
      * @private
      * @returns {Participant[]} A new array containing the elements of the
-     * specified <tt>participants</tt> array sorted in display order.
+     * specified {@code participants} array sorted in display order.
      */
-    _sort(participants) {
+    _sort(participants, isNarrowAspectRatio_) {
         // XXX Array.prototype.sort() is not appropriate because (1) it operates
         // in place and (2) it is not necessarily stable.
 
-        const sortedParticipants = [];
+        const sortedParticipants = [
+            ...participants
+        ];
 
-        // Group the remote participants so that the local participant does not
-        // appear in between remote participants. Have the remote participants
-        // from right to left with the newest added/joined to the leftmost side.
-        for (let i = participants.length - 1; i >= 0; --i) {
-            const p = participants[i];
-
-            p.local || sortedParticipants.push(p);
-        }
-
-        // Have the local participant at the rightmost side.
-        for (let i = participants.length - 1; i >= 0; --i) {
-            const p = participants[i];
-
-            p.local && sortedParticipants.push(p);
+        if (isNarrowAspectRatio_) {
+            // When the narrow aspect ratio is used, we want to have the remote
+            // participants from right to left with the newest added/joined to
+            // the leftmost side. The local participant is the leftmost item.
+            sortedParticipants.reverse();
         }
 
         return sortedParticipants;
@@ -107,9 +129,9 @@ class Filmstrip extends Component {
 }
 
 /**
- * Function that maps parts of Redux state tree into component props.
+ * Maps (parts of) the redux state to the associated {@code Filmstrip}'s props.
  *
- * @param {Object} state - Redux state.
+ * @param {Object} state - The redux state.
  * @private
  * @returns {{
  *     _participants: Participant[],
@@ -117,27 +139,36 @@ class Filmstrip extends Component {
  * }}
  */
 function _mapStateToProps(state) {
+    const participants = state['features/base/participants'];
+    const { enabled, visible } = state['features/filmstrip'];
+
     return {
         /**
-         * The participants in the conference.
-         *
-         * @private
-         * @type {Participant[]}
-         */
-        _participants: state['features/base/participants'],
-
-        /**
-         * The indicator which determines whether the filmstrip is visible.
-         *
-         * XXX The React Component Filmstrip is used on mobile only at the time
-         * of this writing and on mobile the filmstrip is visible when the
-         * toolbar is not.
+         * The indicator which determines whether the filmstrip is enabled.
          *
          * @private
          * @type {boolean}
          */
-        _visible: !state['features/toolbox'].visible
+        _enabled: enabled,
+
+        /**
+         * The remote participants in the conference.
+         *
+         * @private
+         * @type {Participant[]}
+         */
+        _participants: participants.filter(p => !p.local),
+
+        /**
+         * The indicator which determines whether the filmstrip is visible. The
+         * mobile/react-native Filmstrip is visible when there are at least 2
+         * participants in the conference (including the local one).
+         *
+         * @private
+         * @type {boolean}
+         */
+        _visible: visible && participants.length > 1
     };
 }
 
-export default connect(_mapStateToProps)(Filmstrip);
+export default connect(_mapStateToProps)(makeAspectRatioAware(Filmstrip));

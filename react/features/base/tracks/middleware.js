@@ -1,4 +1,4 @@
-/* @flow */
+// @flow
 
 import {
     CAMERA_FACING_MODE,
@@ -6,16 +6,20 @@ import {
     SET_AUDIO_MUTED,
     SET_CAMERA_FACING_MODE,
     SET_VIDEO_MUTED,
-    setAudioMuted,
-    setVideoMuted,
     TOGGLE_CAMERA_FACING_MODE,
     toggleCameraFacingMode
 } from '../media';
 import { MiddlewareRegistry } from '../redux';
+import UIEvents from '../../../../service/UI/UIEvents';
 
-import { setTrackMuted } from './actions';
-import { TRACK_ADDED, TRACK_REMOVED, TRACK_UPDATED } from './actionTypes';
-import { getLocalTrack } from './functions';
+import { createLocalTracksA } from './actions';
+import {
+    TOGGLE_SCREENSHARING,
+    TRACK_ADDED,
+    TRACK_REMOVED,
+    TRACK_UPDATED
+} from './actionTypes';
+import { getLocalTrack, setTrackMuted } from './functions';
 
 declare var APP: Object;
 
@@ -83,6 +87,12 @@ MiddlewareRegistry.register(store => next => action => {
         break;
     }
 
+    case TOGGLE_SCREENSHARING:
+        if (typeof APP === 'object') {
+            APP.UI.emitEvent(UIEvents.TOGGLE_SCREENSHARING);
+        }
+        break;
+
     case TRACK_ADDED:
         // TODO Remove this middleware case once all UI interested in new tracks
         // being added are converted to react and listening for store changes.
@@ -108,30 +118,20 @@ MiddlewareRegistry.register(store => next => action => {
             const participantID = jitsiTrack.getParticipantId();
             const isVideoTrack = jitsiTrack.isVideoTrack();
 
-            if (jitsiTrack.isLocal()) {
-                if (isVideoTrack) {
-                    APP.conference.videoMuted = muted;
-                } else {
-                    APP.conference.audioMuted = muted;
-                }
-            }
-
             if (isVideoTrack) {
-                APP.UI.setVideoMuted(participantID, muted);
+                if (jitsiTrack.isLocal()) {
+                    APP.conference.setVideoMuteStatus(muted);
+                } else {
+                    APP.UI.setVideoMuted(participantID, muted);
+                }
                 APP.UI.onPeerVideoTypeChanged(
                     participantID,
                     jitsiTrack.videoType);
+            } else if (jitsiTrack.isLocal()) {
+                APP.conference.setAudioMuteStatus(muted);
             } else {
                 APP.UI.setAudioMuted(participantID, muted);
             }
-
-            // XXX The following synchronizes the state of base/tracks into the
-            // state of base/media. Which is not required in React (and,
-            // respectively, React Native) because base/media expresses the
-            // app's and the user's desires/expectations/intents and base/tracks
-            // expresses practice/reality. Unfortunately, the old Web does not
-            // comply and/or does the opposite. Hence, the following:
-            return _trackUpdated(store, next, action);
         }
 
     }
@@ -140,19 +140,31 @@ MiddlewareRegistry.register(store => next => action => {
 });
 
 /**
- * Gets the local track associated with a specific <tt>MEDIA_TYPE</tt> in a
+ * Gets the local track associated with a specific {@code MEDIA_TYPE} in a
  * specific redux store.
  *
  * @param {Store} store - The redux store from which the local track associated
- * with the specified <tt>mediaType</tt> is to be retrieved.
- * @param {MEDIA_TYPE} mediaType - The <tt>MEDIA_TYPE</tt> of the local track to
- * be retrieved from the specified <tt>store</tt>.
+ * with the specified {@code mediaType} is to be retrieved.
+ * @param {MEDIA_TYPE} mediaType - The {@code MEDIA_TYPE} of the local track to
+ * be retrieved from the specified {@code store}.
+ * @param {boolean} [includePending] - Indicates whether a local track is to be
+ * returned if it is still pending. A local track is pending if
+ * {@code getUserMedia} is still executing to create it and, consequently, its
+ * {@code jitsiTrack} property is {@code undefined}. By default a pending local
+ * track is not returned.
  * @private
- * @returns {Track} The local <tt>Track</tt> associated with the specified
- * <tt>mediaType</tt> in the specified <tt>store</tt>.
+ * @returns {Track} The local {@code Track} associated with the specified
+ * {@code mediaType} in the specified {@code store}.
  */
-function _getLocalTrack({ getState }, mediaType: MEDIA_TYPE) {
-    return getLocalTrack(getState()['features/base/tracks'], mediaType);
+function _getLocalTrack(
+        { getState }: { getState: Function },
+        mediaType: MEDIA_TYPE,
+        includePending: boolean = false) {
+    return (
+        getLocalTrack(
+            getState()['features/base/tracks'],
+            mediaType,
+            includePending));
 }
 
 /**
@@ -166,69 +178,21 @@ function _getLocalTrack({ getState }, mediaType: MEDIA_TYPE) {
  * @private
  * @returns {void}
  */
-function _setMuted(store, { muted }, mediaType: MEDIA_TYPE) {
-    const localTrack = _getLocalTrack(store, mediaType);
+function _setMuted(store, { ensureTrack, muted }, mediaType: MEDIA_TYPE) {
+    const localTrack
+        = _getLocalTrack(store, mediaType, /* includePending */ true);
 
-    localTrack && store.dispatch(setTrackMuted(localTrack.jitsiTrack, muted));
-}
+    if (localTrack) {
+        // The `jitsiTrack` property will have a value only for a localTrack for
+        // which `getUserMedia` has already completed. If there's no
+        // `jitsiTrack`, then the `muted` state will be applied once the
+        // `jitsiTrack` is created.
+        const { jitsiTrack } = localTrack;
 
-/**
- * Intercepts the action <tt>TRACK_UPDATED</tt> in order to synchronize the
- * muted states of the local tracks of features/base/tracks with the muted
- * states of features/base/media.
- *
- * @param {Store} store - The redux store in which the specified <tt>action</tt>
- * is being dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified <tt>action</tt> to the specified <tt>store</tt>.
- * @param {Action} action - The redux action <tt>TRACK_UPDATED</tt> which is
- * being dispatched in the specified <tt>store</tt>.
- * @private
- * @returns {Object} The new state that is the result of the reduction of the
- * specified <tt>action</tt>.
- */
-function _trackUpdated(store, next, action) {
-    // Determine the muted state of the local track before the update.
-    const track = action.track;
-    let mediaType;
-    let oldMuted;
-
-    if ('muted' in track) {
-        // XXX The return value of JitsiTrack.getType() is of type MEDIA_TYPE
-        // that happens to be compatible with the type MEDIA_TYPE defined by
-        // jitsi-meet.
-        mediaType = track.jitsiTrack.getType();
-
-        const localTrack = _getLocalTrack(store, mediaType);
-
-        if (localTrack) {
-            oldMuted = localTrack.muted;
-        }
+        jitsiTrack && setTrackMuted(jitsiTrack, muted);
+    } else if (!muted && ensureTrack && typeof APP === 'undefined') {
+        // FIXME: This only runs on mobile now because web has its own way of
+        // creating local tracks. Adjust the check once they are unified.
+        store.dispatch(createLocalTracksA({ devices: [ mediaType ] }));
     }
-
-    const result = next(action);
-
-    if (typeof oldMuted !== 'undefined') {
-        // Determine the muted state of the local track after the update. If the
-        // muted states before and after the update differ, then the respective
-        // media state should by synchronized.
-        const localTrack = _getLocalTrack(store, mediaType);
-
-        if (localTrack) {
-            const newMuted = localTrack.muted;
-
-            if (oldMuted !== newMuted) {
-                switch (mediaType) {
-                case MEDIA_TYPE.AUDIO:
-                    store.dispatch(setAudioMuted(newMuted));
-                    break;
-                case MEDIA_TYPE.VIDEO:
-                    store.dispatch(setVideoMuted(newMuted));
-                    break;
-                }
-            }
-        }
-    }
-
-    return result;
 }

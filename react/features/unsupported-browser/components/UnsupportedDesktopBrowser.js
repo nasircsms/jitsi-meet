@@ -1,12 +1,12 @@
 /* @flow */
 
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 
 import { translate } from '../../base/i18n';
-import { Platform } from '../../base/react';
+import { HideNotificationBarStyle, Platform } from '../../base/react';
 
 import { CHROME, FIREFOX, IE, SAFARI } from './browserLinks';
-import HideNotificationBarStyle from './HideNotificationBarStyle';
 
 /**
  * The namespace of the CSS styles of UnsupportedDesktopBrowser.
@@ -21,7 +21,7 @@ const _SNS = 'unsupported-desktop-browser';
  *
  * @class UnsupportedDesktopBrowser
  */
-class UnsupportedDesktopBrowser extends Component {
+class UnsupportedDesktopBrowser extends Component<*> {
     /**
      * UnsupportedDesktopBrowser component's property types.
      *
@@ -34,7 +34,7 @@ class UnsupportedDesktopBrowser extends Component {
          * @public
          * @type {Function}
          */
-        t: React.PropTypes.func
+        t: PropTypes.func
     };
 
     /**

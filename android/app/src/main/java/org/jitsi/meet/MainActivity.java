@@ -17,8 +17,17 @@
 package org.jitsi.meet;
 
 import android.os.Bundle;
+import android.util.Log;
 
+import org.jitsi.meet.sdk.InviteSearchController;
 import org.jitsi.meet.sdk.JitsiMeetActivity;
+import org.jitsi.meet.sdk.JitsiMeetView;
+import org.jitsi.meet.sdk.JitsiMeetViewListener;
+
+import com.calendarevents.CalendarEventsPackage;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * The one and only {@link Activity} that the Jitsi Meet app needs. The
@@ -33,17 +42,80 @@ import org.jitsi.meet.sdk.JitsiMeetActivity;
  * {@code react-native run-android}.
  */
 public class MainActivity extends JitsiMeetActivity {
-    /**
-     * {@inheritDoc}
-     */
+    @Override
+    protected JitsiMeetView initializeView() {
+        JitsiMeetView view = super.initializeView();
+
+        // XXX In order to increase (1) awareness of API breakages and (2) API
+        // coverage, utilize JitsiMeetViewListener in the Debug configuration of
+        // the app.
+        if (BuildConfig.DEBUG && view != null) {
+            view.setListener(new JitsiMeetViewListener() {
+                private void on(String name, Map<String, Object> data) {
+                    // Log with the tag "ReactNative" in order to have the log
+                    // visible in react-native log-android as well.
+                    Log.d(
+                        "ReactNative",
+                        JitsiMeetViewListener.class.getSimpleName() + " "
+                            + name + " "
+                            + data);
+                }
+
+                @Override
+                public void onConferenceFailed(Map<String, Object> data) {
+                    on("CONFERENCE_FAILED", data);
+                }
+
+                @Override
+                public void onConferenceJoined(Map<String, Object> data) {
+                    on("CONFERENCE_JOINED", data);
+                }
+
+                @Override
+                public void onConferenceLeft(Map<String, Object> data) {
+                    on("CONFERENCE_LEFT", data);
+                }
+
+                @Override
+                public void onConferenceWillJoin(Map<String, Object> data) {
+                    on("CONFERENCE_WILL_JOIN", data);
+                }
+
+                @Override
+                public void onConferenceWillLeave(Map<String, Object> data) {
+                    on("CONFERENCE_WILL_LEAVE", data);
+                }
+
+                @Override
+                public void launchNativeInvite(InviteSearchController inviteSearchController) {
+                    on("LAUNCH_NATIVE_INVITE", new HashMap<String, Object>());
+                }
+
+                @Override
+                public void onLoadConfigError(Map<String, Object> data) {
+                    on("LOAD_CONFIG_ERROR", data);
+                }
+            });
+        }
+
+        return view;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // As this is the Jitsi Meet app (i.e. not the Jitsi Meet SDK), we do
-        // want the Welcome page to be enabled. It defaults to disabled in the
-        // SDK at the time of this writing but it is clearer to be explicit
-        // about what we want anyway.
+        // want to enable some options.
+
+        // The welcome page defaults to disabled in the SDK at the time of this
+        // writing but it is clearer to be explicit about what we want anyway.
         setWelcomePageEnabled(true);
 
         super.onCreate(savedInstanceState);
     }
+
+    @Override
+  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+      CalendarEventsPackage.onRequestPermissionsResult(requestCode, permissions, grantResults);
+      super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+  }
 }

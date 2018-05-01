@@ -1,31 +1,26 @@
-/* @flow */
-
+import Tooltip from '@atlaskit/tooltip';
+import PropTypes from 'prop-types';
 import React from 'react';
-import { connect } from 'react-redux';
-
-import { translate } from '../../base/i18n';
-
-import UIUtil from '../../../../modules/UI/util/UIUtil';
 
 import AbstractToolbarButton from './AbstractToolbarButton';
-import { getButtonAttributesByProps } from '../functions';
-
-declare var APP: Object;
-declare var interfaceConfig: Object;
 
 /**
- * Represents a button in Toolbar on React.
+ * Represents a button in the toolbar.
  *
- * @class ToolbarButton
  * @extends AbstractToolbarButton
  */
 class ToolbarButton extends AbstractToolbarButton {
-    _createRefToButton: Function;
-
-    _onClick: Function;
+    /**
+     * Default values for {@code ToolbarButton} component's properties.
+     *
+     * @static
+     */
+    static defaultProps = {
+        tooltipPosition: 'top'
+    };
 
     /**
-     * Toolbar button component's property types.
+     * {@code ToolbarButton} component's property types.
      *
      * @static
      */
@@ -33,215 +28,54 @@ class ToolbarButton extends AbstractToolbarButton {
         ...AbstractToolbarButton.propTypes,
 
         /**
-         * Object describing button.
+         * The text to display in the tooltip.
          */
-        button: React.PropTypes.object.isRequired,
+        tooltip: PropTypes.string,
 
         /**
-         * Used to dispatch an action when the button is clicked.
+         * From which direction the tooltip should appear, relative to the
+         * button.
          */
-        dispatch: React.PropTypes.func,
-
-        /**
-         * Handler for component mount.
-         */
-        onMount: React.PropTypes.func,
-
-        /**
-         * Handler for component unmount.
-         */
-        onUnmount: React.PropTypes.func,
-
-        /**
-         * Translation helper function.
-         */
-        t: React.PropTypes.func,
-
-        /**
-         * Indicates the position of the tooltip.
-         */
-        tooltipPosition:
-            React.PropTypes.oneOf([ 'bottom', 'left', 'right', 'top' ])
-    };
-
-    /**
-     * Initializes new ToolbarButton instance.
-     *
-     * @param {Object} props - The read-only properties with which the new
-     * instance is to be initialized.
-     */
-    constructor(props: Object) {
-        super(props);
-
-        // Bind methods to save the context
-        this._createRefToButton = this._createRefToButton.bind(this);
-        this._onClick = this._onClick.bind(this);
+        tooltipPosition: PropTypes.string
     }
 
     /**
-     * Sets shortcut/tooltip
-     * after mounting of the component.
+     * Renders the button of this {@code ToolbarButton}.
      *
-     * @inheritdoc
-     * @returns {void}
+     * @param {Object} children - The children, if any, to be rendered inside
+     * the button. Presumably, contains the icon of this {@code ToolbarButton}.
+     * @protected
+     * @returns {ReactElement} The button of this {@code ToolbarButton}.
      */
-    componentDidMount(): void {
-        this._setShortcutAndTooltip();
-
-        if (this.props.onMount) {
-            this.props.onMount();
-        }
-    }
-
-    /**
-     * Invokes on unmount handler if it was passed to the props.
-     *
-     * @inheritdoc
-     * @returns {void}
-     */
-    componentWillUnmount(): void {
-        if (this.props.onUnmount) {
-            this.props.onUnmount();
-        }
-    }
-
-    /**
-     * Implements React's {@link Component#render()}.
-     *
-     * @inheritdoc
-     * @returns {ReactElement}
-     */
-    render(): ReactElement<*> {
-        const { button } = this.props;
-        const attributes = getButtonAttributesByProps(button);
-        const popups = button.popups || [];
-
+    _renderButton(children) {
         return (
-            <a
-                { ...attributes }
-                onClick = { this._onClick }
-                ref = { this._createRefToButton }>
-                { this._renderInnerElementsIfRequired() }
-                { this._renderPopups(popups) }
-            </a>
+            <div
+                aria-label = { this.props.accessibilityLabel }
+                className = 'toolbox-button'
+                onClick = { this.props.onClick }>
+                { this.props.tooltip
+                    ? <Tooltip
+                        content = { this.props.tooltip }
+                        position = { this.props.tooltipPosition }>
+                        { children }
+                    </Tooltip>
+                    : children }
+            </div>
         );
     }
 
     /**
-     * Creates reference to current toolbar button.
+     * Renders the icon of this {@code ToolbarButton}.
      *
-     * @param {HTMLElement} element - HTMLElement representing the toolbar
-     * button.
-     * @returns {void}
-     * @private
+     * @inheritdoc
      */
-    _createRefToButton(element: HTMLElement): void {
-        this.button = element;
-    }
-
-    /**
-     * Wrapper on on click handler props for current button.
-     *
-     * @param {Event} event - Click event object.
-     * @returns {void}
-     * @private
-     */
-    _onClick(event: Event): void {
-        const {
-            button,
-            onClick
-        } = this.props;
-        const {
-            enabled,
-            unclickable
-        } = button;
-
-        if (enabled && !unclickable && onClick) {
-            const action = onClick(event);
-
-            if (action) {
-                this.props.dispatch(action);
-            }
-        }
-    }
-
-    /**
-     * If toolbar button should contain children elements
-     * renders them.
-     *
-     * @returns {ReactElement|null}
-     * @private
-     */
-    _renderInnerElementsIfRequired(): ReactElement<*> | null {
-        if (this.props.button.html) {
-            return this.props.button.html;
-        }
-
-        return null;
-    }
-
-    /**
-     * Renders popup element for toolbar button.
-     *
-     * @param {Array} popups - Array of popup objects.
-     * @returns {Array}
-     * @private
-     */
-    _renderPopups(popups: Array<*> = []): Array<*> {
-        return popups.map(popup => {
-            let gravity = 'n';
-
-            if (popup.dataAttrPosition) {
-                gravity = popup.dataAttrPosition;
-            }
-
-            const title = this.props.t(popup.dataAttr, popup.dataInterpolate);
-
-            return (
-                <div
-                    className = { popup.className }
-                    data-popup = { gravity }
-                    id = { popup.id }
-                    key = { popup.id }
-                    title = { title } />
-            );
-        });
-    }
-
-    /**
-     * Sets shortcut and tooltip for current toolbar button.
-     *
-     * @private
-     * @returns {void}
-     */
-    _setShortcutAndTooltip(): void {
-        const { button, tooltipPosition } = this.props;
-        const name = button.buttonName;
-
-        if (UIUtil.isButtonEnabled(name)) {
-
-            if (!button.unclickable) {
-                if (button.tooltipText) {
-                    UIUtil.setTooltipText(this.button,
-                        button.tooltipText,
-                        tooltipPosition);
-                } else {
-                    UIUtil.setTooltip(this.button,
-                        button.tooltipKey,
-                        tooltipPosition);
-                }
-            }
-
-            if (button.shortcut) {
-                APP.keyboardshortcut.registerShortcut(
-                    button.shortcut,
-                    button.shortcutAttr,
-                    button.shortcutFunc,
-                    button.shortcutDescription
-                );
-            }
-        }
+    _renderIcon() {
+        return (
+            <div className = 'toolbox-icon'>
+                <i className = { this.props.iconName } />
+            </div>
+        );
     }
 }
 
-export default translate(connect()(ToolbarButton));
+export default ToolbarButton;

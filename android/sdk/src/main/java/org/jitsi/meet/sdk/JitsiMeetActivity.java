@@ -17,38 +17,62 @@
 package org.jitsi.meet.sdk;
 
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.view.KeyEvent;
+
+import com.facebook.react.ReactInstanceManager;
+import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler;
 
 import java.net.URL;
 
 /**
  * Base Activity for applications integrating Jitsi Meet at a higher level. It
- * contains all the required wiring between the <tt>JKConferenceView</tt> and
+ * contains all the required wiring between the {@code JitsiMeetView} and
  * the Activity lifecycle methods already implemented.
  *
- * In this activity we use a single <tt>JKConferenceView</tt> instance. This
+ * In this activity we use a single {@code JitsiMeetView} instance. This
  * instance gives us access to a view which displays the welcome page and the
  * conference itself. All lifetime methods associated with this Activity are
  * hooked to the React Native subsystem via proxy calls through the
- * <tt>JKConferenceView</tt> static methods.
+ * {@code JitsiMeetView} static methods.
  */
 public class JitsiMeetActivity extends AppCompatActivity {
     /**
      * The request code identifying requests for the permission to draw on top
-     * of other apps. The value must be 16-bit and is arbitrarily chosen here. 
+     * of other apps. The value must be 16-bit and is arbitrarily chosen here.
      */
     private static final int OVERLAY_PERMISSION_REQUEST_CODE
         = (int) (Math.random() * Short.MAX_VALUE);
 
     /**
+     * The default behavior of this {@code JitsiMeetActivity} upon invoking the
+     * back button if {@link #view} does not handle the invocation.
+     */
+    private DefaultHardwareBackBtnHandler defaultBackButtonImpl;
+
+    /**
+     * The default base {@code URL} used to join a conference when a partial URL
+     * (e.g. a room name only) is specified. The value is used only while
+     * {@link #view} equals {@code null}.
+     */
+    private URL defaultURL;
+
+    /**
      * Instance of the {@link JitsiMeetView} which this activity will display.
      */
     private JitsiMeetView view;
+
+    /**
+     * Whether Picture-in-Picture is enabled. The value is used only while
+     * {@link #view} equals {@code null}.
+     */
+    private Boolean pictureInPictureEnabled;
 
     /**
      * Whether the Welcome page is enabled. The value is used only while
@@ -66,7 +90,26 @@ public class JitsiMeetActivity extends AppCompatActivity {
 
     /**
      *
-     * @see JitsiMeetView#getWelcomePageEnabled
+     * @see JitsiMeetView#getDefaultURL()
+     */
+    public URL getDefaultURL() {
+        return view == null ? defaultURL : view.getDefaultURL();
+    }
+
+    /**
+     *
+     * @see JitsiMeetView#getPictureInPictureEnabled()
+     */
+    public boolean getPictureInPictureEnabled() {
+        return
+            view == null
+                ? pictureInPictureEnabled
+                : view.getPictureInPictureEnabled();
+    }
+
+    /**
+     *
+     * @see JitsiMeetView#getWelcomePageEnabled()
      */
     public boolean getWelcomePageEnabled() {
         return view == null ? welcomePageEnabled : view.getWelcomePageEnabled();
@@ -76,31 +119,47 @@ public class JitsiMeetActivity extends AppCompatActivity {
      * Initializes the {@link #view} of this {@code JitsiMeetActivity} with a
      * new {@link JitsiMeetView} instance.
      */
-    private void initializeView() {
-        view = new JitsiMeetView(this);
+    private void initializeContentView() {
+        JitsiMeetView view = initializeView();
 
-        // In order to have the desired effect
-        // JitsiMeetView#setWelcomePageEnabled(boolean) must be invoked before
-        // JitsiMeetView#loadURL(URL).
+        if (view != null) {
+            this.view = view;
+            setContentView(this.view);
+        }
+    }
+
+    /**
+     * Initializes a new {@link JitsiMeetView} instance.
+     *
+     * @return a new {@code JitsiMeetView} instance.
+     */
+    protected JitsiMeetView initializeView() {
+        JitsiMeetView view = new JitsiMeetView(this);
+
+        // XXX Before calling JitsiMeetView#loadURL, make sure to call whatever
+        // is documented to need such an order in order to take effect:
+        view.setDefaultURL(defaultURL);
+        if (pictureInPictureEnabled != null) {
+            view.setPictureInPictureEnabled(
+                pictureInPictureEnabled.booleanValue());
+        }
         view.setWelcomePageEnabled(welcomePageEnabled);
+
         view.loadURL(null);
 
-        setContentView(view);
+        return view;
     }
 
     /**
      * Loads the given URL and displays the conference. If the specified URL is
      * null, the welcome page is displayed instead.
      *
-     * @param url - The conference URL.
+     * @param url The conference URL.
      */
     public void loadURL(@Nullable URL url) {
         view.loadURL(url);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected void onActivityResult(
             int requestCode,
@@ -109,25 +168,28 @@ public class JitsiMeetActivity extends AppCompatActivity {
         if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE
                 && canRequestOverlayPermission()) {
             if (Settings.canDrawOverlays(this)) {
-                initializeView();
+                initializeContentView();
             }
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void onBackPressed() {
         if (!JitsiMeetView.onBackPressed()) {
-            // Invoke the default handler if it wasn't handled by React.
-            super.onBackPressed();
+            // JitsiMeetView didn't handle the invocation of the back button.
+            // Generally, an Activity extender would very likely want to invoke
+            // Activity#onBackPressed(). For the sake of consistency with
+            // JitsiMeetView and within the Jitsi Meet SDK for Android though,
+            // JitsiMeetActivity does what JitsiMeetView would've done if it
+            // were able to handle the invocation.
+            if (defaultBackButtonImpl == null) {
+                super.onBackPressed();
+            } else {
+                defaultBackButtonImpl.invokeDefaultOnBackPressed();
+            }
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -144,12 +206,9 @@ public class JitsiMeetActivity extends AppCompatActivity {
             return;
         }
 
-        initializeView();
+        initializeContentView();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -162,37 +221,77 @@ public class JitsiMeetActivity extends AppCompatActivity {
         JitsiMeetView.onHostDestroy(this);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    // ReactAndroid/src/main/java/com/facebook/react/ReactActivity.java
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        ReactInstanceManager reactInstanceManager;
+
+        if (!super.onKeyUp(keyCode, event)
+                && BuildConfig.DEBUG
+                && (reactInstanceManager
+                        = JitsiMeetView.getReactInstanceManager())
+                    != null
+                && keyCode == KeyEvent.KEYCODE_MENU) {
+            reactInstanceManager.showDevOptionsDialog();
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public void onNewIntent(Intent intent) {
         JitsiMeetView.onNewIntent(intent);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void onPause() {
-        super.onPause();
-
-        JitsiMeetView.onHostPause(this);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected void onResume() {
         super.onResume();
 
-        JitsiMeetView.onHostResume(this);
+        defaultBackButtonImpl = new DefaultHardwareBackBtnHandlerImpl(this);
+        JitsiMeetView.onHostResume(this, defaultBackButtonImpl);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+
+        JitsiMeetView.onHostPause(this);
+        defaultBackButtonImpl = null;
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        JitsiMeetView.onUserLeaveHint();
     }
 
     /**
      *
-     * @see JitsiMeetView#setWelcomePageEnabled
+     * @see JitsiMeetView#setDefaultURL(URL)
+     */
+    public void setDefaultURL(URL defaultURL) {
+        if (view == null) {
+            this.defaultURL = defaultURL;
+        } else {
+            view.setDefaultURL(defaultURL);
+        }
+    }
+
+    /**
+     *
+     * @see JitsiMeetView#setPictureInPictureEnabled(boolean)
+     */
+    public void setPictureInPictureEnabled(boolean pictureInPictureEnabled) {
+        if (view == null) {
+            this.pictureInPictureEnabled
+                = Boolean.valueOf(pictureInPictureEnabled);
+        } else {
+            view.setPictureInPictureEnabled(pictureInPictureEnabled);
+        }
+    }
+
+    /**
+     *
+     * @see JitsiMeetView#setWelcomePageEnabled(boolean)
      */
     public void setWelcomePageEnabled(boolean welcomePageEnabled) {
         if (view == null) {

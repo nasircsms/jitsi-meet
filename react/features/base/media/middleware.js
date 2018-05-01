@@ -1,12 +1,25 @@
-/* @flow */
+// @flow
 
-import { SET_ROOM } from '../conference';
-import { parseURLParams } from '../config';
+import {
+    createStartAudioOnlyEvent,
+    createStartMutedConfigurationEvent,
+    createSyncTrackStateEvent,
+    sendAnalytics
+} from '../../analytics';
+import { isRoomValid, SET_ROOM, setAudioOnly } from '../conference';
+import JitsiMeetJS from '../lib-jitsi-meet';
+import { getPropertyValue } from '../profile';
 import { MiddlewareRegistry } from '../redux';
 import { setTrackMuted, TRACK_ADDED } from '../tracks';
 
 import { setAudioMuted, setCameraFacingMode, setVideoMuted } from './actions';
 import { CAMERA_FACING_MODE } from './constants';
+import {
+    _AUDIO_INITIAL_MEDIA_STATE,
+    _VIDEO_INITIAL_MEDIA_STATE
+} from './reducer';
+
+const logger = require('jitsi-meet-logger').getLogger(__filename);
 
 /**
  * Implements the entry point of the middleware of the feature base/media.
@@ -21,8 +34,9 @@ MiddlewareRegistry.register(store => next => action => {
 
     case TRACK_ADDED: {
         const result = next(action);
+        const { track } = action;
 
-        action.track.local && _syncTrackMutedState(store, action.track);
+        track.local && _syncTrackMutedState(store, track);
 
         return result;
     }
@@ -46,34 +60,51 @@ MiddlewareRegistry.register(store => next => action => {
  * specified {@code action}.
  */
 function _setRoom({ dispatch, getState }, next, action) {
+    // Figure out the desires/intents i.e. the state of base/media. There are
+    // multiple desires/intents ordered by precedence such as server-side
+    // config, config overrides in the user-supplied URL, user's own app
+    // settings, etc.
+
     const state = getState();
-    let audioMuted;
-    let videoMuted;
+    const { room } = action;
+    const roomIsValid = isRoomValid(room);
 
-    if (action.room) {
-        // The Jitsi Meet client may override the Jitsi Meet deployment on the
-        // subject of startWithAudioMuted and/or startWithVideoMuted in the
-        // (location) URL.
-        const urlParams
-            = parseURLParams(state['features/base/connection'].locationURL);
+    // XXX The configurations/preferences/settings startWithAudioMuted,
+    // startWithVideoMuted, and startAudioOnly were introduced for
+    // conferences/meetings. So it makes sense for these to not be considered
+    // outside of conferences/meetings (e.g. WelcomePage). Later on, though, we
+    // introduced a "Video <-> Voice" toggle on the WelcomePage which utilizes
+    // startAudioOnly outside of conferences/meetings so that particular
+    // configuration/preference/setting employs slightly exclusive logic.
+    const mutedSources = {
+        // We have startWithAudioMuted and startWithVideoMuted here:
+        config: true,
+        profile: true,
 
-        audioMuted = urlParams['config.startWithAudioMuted'];
-        videoMuted = urlParams['config.startWithVideoMuted'];
-    }
+        // XXX We've already overwritten base/config with urlParams. However,
+        // profile is more important than the server-side config. Consequently,
+        // we need to read from urlParams anyway:
+        urlParams: true,
 
-    // Of course, the Jitsi Meet deployment may define startWithAudioMuted
-    // and/or startWithVideoMuted through config.js which should be respected if
-    // the client did not override it.
-    const config = state['features/base/config'];
+        // We don't have startWithAudioMuted and startWithVideoMuted here:
+        jwt: false
+    };
+    const audioMuted
+        = roomIsValid
+            ? Boolean(
+                getPropertyValue(state, 'startWithAudioMuted', mutedSources))
+            : _AUDIO_INITIAL_MEDIA_STATE.muted;
+    const videoMuted
+        = roomIsValid
+            ? Boolean(
+                getPropertyValue(state, 'startWithVideoMuted', mutedSources))
+            : _VIDEO_INITIAL_MEDIA_STATE.muted;
 
-    typeof audioMuted === 'undefined'
-        && (audioMuted = config.startWithAudioMuted);
-    typeof videoMuted === 'undefined'
-        && (videoMuted = config.startWithVideoMuted);
-
-    // Apply startWithAudioMuted and startWithVideoMuted.
-    audioMuted = Boolean(audioMuted);
-    videoMuted = Boolean(videoMuted);
+    sendAnalytics(
+        createStartMutedConfigurationEvent('local', audioMuted, videoMuted));
+    logger.log(
+        `Start muted: ${audioMuted ? 'audio, ' : ''}${
+            videoMuted ? 'video' : ''}`);
 
     // Unconditionally express the desires/expectations/intents of the app and
     // the user i.e. the state of base/media. Eventually, practice/reality i.e.
@@ -81,6 +112,57 @@ function _setRoom({ dispatch, getState }, next, action) {
     dispatch(setAudioMuted(audioMuted));
     dispatch(setCameraFacingMode(CAMERA_FACING_MODE.USER));
     dispatch(setVideoMuted(videoMuted));
+
+    // startAudioOnly
+    //
+    // FIXME Technically, the audio-only feature is owned by base/conference,
+    // not base/media so the following should be in base/conference.
+    // Practically, I presume it was easier to write the source code here
+    // because it looks like startWithAudioMuted and startWithVideoMuted.
+    //
+    // XXX After the introduction of the "Video <-> Voice" toggle on the
+    // WelcomePage, startAudioOnly is utilized even outside of
+    // conferences/meetings.
+    let audioOnly;
+
+    if (JitsiMeetJS.mediaDevices.supportsVideo()) {
+        audioOnly
+            = Boolean(
+                getPropertyValue(
+                    state,
+                    'startAudioOnly',
+                    /* sources */ {
+                        // FIXME Practically, base/config is (really) correct
+                        // only if roomIsValid. At the time of this writing,
+                        // base/config is overwritten by URL params which leaves
+                        // base/config incorrect on the WelcomePage after
+                        // leaving a conference which explicitly overwrites
+                        // base/config with URL params.
+                        config: roomIsValid,
+
+                        // XXX We've already overwritten base/config with
+                        // urlParams if roomIsValid. However, profile is more
+                        // important than the server-side config. Consequently,
+                        // we need to read from urlParams anyway. We also
+                        // probably want to read from urlParams when
+                        // !roomIsValid.
+                        urlParams: true,
+
+                        // The following don't have complications around whether
+                        // they are defined or not:
+                        jwt: false,
+                        profile: true
+                    }));
+    } else {
+        // Default to audio-only if the (execution) environment does not
+        // support (sending and/or receiving) video.
+        audioOnly = true;
+    }
+
+    sendAnalytics(createStartAudioOnlyEvent(audioOnly));
+    logger.log(`Start audio only set to ${audioOnly.toString()}`);
+
+    dispatch(setAudioOnly(audioOnly));
 
     return next(action);
 }
@@ -93,7 +175,7 @@ function _setRoom({ dispatch, getState }, next, action) {
  * @private
  * @returns {void}
  */
-function _syncTrackMutedState({ dispatch, getState }, track) {
+function _syncTrackMutedState({ getState }, track) {
     const state = getState()['features/base/media'];
     const muted = Boolean(state[track.mediaType].muted);
 
@@ -103,7 +185,12 @@ function _syncTrackMutedState({ dispatch, getState }, track) {
     // not yet in redux state and JitsiTrackEvents.TRACK_MUTE_CHANGED may be
     // fired before track gets to state.
     if (track.muted !== muted) {
+        sendAnalytics(createSyncTrackStateEvent(track.mediaType, muted));
+        logger.log(
+            `Sync ${track.mediaType} track muted state to ${
+                muted ? 'muted' : 'unmuted'}`);
+
         track.muted = muted;
-        dispatch(setTrackMuted(track.jitsiTrack, muted));
+        setTrackMuted(track.jitsiTrack, muted);
     }
 }

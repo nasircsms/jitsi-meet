@@ -1,4 +1,6 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+
 import BaseIndicator from './BaseIndicator';
 
 /**
@@ -7,6 +9,18 @@ import BaseIndicator from './BaseIndicator';
  * @extends Component
  */
 class VideoMutedIndicator extends Component {
+    /**
+     * {@code VideoMutedIndicator} component's property types.
+     *
+     * @static
+     */
+    static propTypes = {
+        /**
+         * From which side of the indicator the tooltip should appear from.
+         */
+        tooltipPosition: PropTypes.string
+    };
+
     /**
      * Implements React's {@link Component#render()}.
      *
@@ -17,7 +31,8 @@ class VideoMutedIndicator extends Component {
             <BaseIndicator
                 className = 'videoMuted toolbar-icon'
                 iconClassName = 'icon-camera-disabled'
-                tooltipKey = 'videothumbnail.videomute' />
+                tooltipKey = 'videothumbnail.videomute'
+                tooltipPosition = { this.props.tooltipPosition } />
         );
     }
 }

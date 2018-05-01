@@ -1,4 +1,9 @@
+import { AtlasKitThemeProvider } from '@atlaskit/theme';
+import React from 'react';
+
+import '../../base/responsive-ui';
 import { getLocationContextRoot } from '../../base/util';
+import '../../chat';
 import '../../room-lock';
 
 import { AbstractApp } from './AbstractApp';
@@ -35,6 +40,20 @@ export class App extends AbstractApp {
              */
             windowLocationContextRoot: this._getWindowLocationContextRoot()
         };
+    }
+
+    /**
+     * Overrides the parent method to inject {@link AtlasKitThemeProvider} as
+     * the top most component.
+     *
+     * @override
+     */
+    _createElement(component, props) {
+        return (
+            <AtlasKitThemeProvider mode = 'dark'>
+                { super._createElement(component, props) }
+            </AtlasKitThemeProvider>
+        );
     }
 
     /**

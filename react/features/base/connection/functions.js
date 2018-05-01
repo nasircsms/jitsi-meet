@@ -1,5 +1,7 @@
 /* @flow */
 
+import { toState } from '../redux';
+
 /**
  * Retrieves a simplified version of the conference/location URL stripped of URL
  * params (i.e. query/search and hash) which should be used for sending invites.
@@ -9,21 +11,13 @@
  * @returns {string|undefined}
  */
 export function getInviteURL(stateOrGetState: Function | Object): ?string {
-    const state
-        = typeof stateOrGetState === 'function'
-            ? stateOrGetState()
-            : stateOrGetState;
+    const state = toState(stateOrGetState);
     const locationURL
         = state instanceof URL
             ? state
             : state['features/base/connection'].locationURL;
-    let inviteURL;
 
-    if (locationURL) {
-        inviteURL = getURLWithoutParams(locationURL).href;
-    }
-
-    return inviteURL;
+    return locationURL ? getURLWithoutParams(locationURL).href : undefined;
 }
 
 /**
@@ -56,4 +50,35 @@ export function getURLWithoutParams(url: URL): URL {
     }
 
     return url;
+}
+
+/**
+ * Gets a URL string without hash and query/search params from a specific
+ * {@code URL}.
+ *
+ * @param {URL} url - The {@code URL} which may have hash and query/search
+ * params.
+ * @returns {string}
+ */
+export function getURLWithoutParamsNormalized(url: URL): string {
+    const urlWithoutParams = getURLWithoutParams(url).href;
+
+    if (urlWithoutParams) {
+        return urlWithoutParams.toLowerCase();
+    }
+
+    return '';
+}
+
+/**
+ * Converts a specific id to jid if it's not jid yet.
+ *
+ * @param {string} id - User id or jid.
+ * @param {Object} configHosts - The {@code hosts} part of the {@code config}
+ * object.
+ * @returns {string} A string in the form of a JID (i.e.
+ * {@code user@server.com}).
+ */
+export function toJid(id: string, { authdomain, domain }: Object): string {
+    return id.indexOf('@') >= 0 ? id : `${id}@${authdomain || domain}`;
 }

@@ -15,6 +15,7 @@ MiddlewareRegistry.register(store => next => action => {
     const result = next(action);
 
     switch (action.type) {
+
     case UPDATE_DIAL_IN_NUMBERS_FAILED:
         logger.error(
             'Error encountered while fetching dial-in numbers:',

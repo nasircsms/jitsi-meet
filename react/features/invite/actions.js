@@ -1,31 +1,10 @@
-import { openDialog } from '../../features/base/dialog';
+// @flow
 
 import {
     UPDATE_DIAL_IN_NUMBERS_FAILED,
     UPDATE_DIAL_IN_NUMBERS_SUCCESS
 } from './actionTypes';
-import { AddPeopleDialog, InviteDialog } from './components';
-
-declare var $: Function;
-declare var APP: Object;
-
-/**
- * Opens the Invite Dialog.
- *
- * @returns {Function}
- */
-export function openInviteDialog() {
-    return openDialog(InviteDialog);
-}
-
-/**
- * Opens the Add People Dialog.
- *
- * @returns {Function}
- */
-export function openAddPeopleDialog() {
-    return openDialog(AddPeopleDialog);
-}
+import { getDialInConferenceID, getDialInNumbers } from './functions';
 
 /**
  * Sends AJAX requests for dial-in numbers and conference ID.
@@ -33,7 +12,7 @@ export function openAddPeopleDialog() {
  * @returns {Function}
  */
 export function updateDialInNumbers() {
-    return (dispatch, getState) => {
+    return (dispatch: Dispatch<*>, getState: Function) => {
         const state = getState();
         const { dialInConfCodeUrl, dialInNumbersUrl, hosts }
             = state['features/base/config'];
@@ -45,12 +24,10 @@ export function updateDialInNumbers() {
         }
 
         const { room } = state['features/base/conference'];
-        const conferenceIDURL
-            = `${dialInConfCodeUrl}?conference=${room}@${mucURL}`;
 
         Promise.all([
-            $.getJSON(dialInNumbersUrl),
-            $.getJSON(conferenceIDURL)
+            getDialInNumbers(dialInNumbersUrl),
+            getDialInConferenceID(dialInConfCodeUrl, room, mucURL)
         ])
             .then(([ dialInNumbers, { conference, id, message } ]) => {
                 if (!conference || !id) {

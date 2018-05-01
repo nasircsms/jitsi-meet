@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 
 /**
@@ -13,33 +14,39 @@ export default class AbstractToolbarButton extends Component {
      */
     static propTypes = {
         /**
+         * A succinct description of what the button does. Used by accessibility
+         * tools and torture tests.
+         */
+        accessibilityLabel: PropTypes.string,
+
+        /**
          * The name of the Icon of this {@code AbstractToolbarButton}.
          */
-        iconName: React.PropTypes.string,
+        iconName: PropTypes.string,
 
         /**
          * The style of the Icon of this {@code AbstractToolbarButton}.
          */
-        iconStyle: React.PropTypes.object,
+        iconStyle: PropTypes.object,
 
         /**
          * On click handler.
          */
-        onClick: React.PropTypes.func,
+        onClick: PropTypes.func,
 
         /**
          * {@code AbstractToolbarButton} styles.
          */
         style:
-            React.PropTypes.oneOfType([
-                React.PropTypes.array,
-                React.PropTypes.object
+            PropTypes.oneOfType([
+                PropTypes.array,
+                PropTypes.object
             ]),
 
         /**
          * The color underlaying the button.
          */
-        underlayColor: React.PropTypes.any
+        underlayColor: PropTypes.any
     };
 
     /**

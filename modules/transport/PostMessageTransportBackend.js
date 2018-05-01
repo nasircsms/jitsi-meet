@@ -22,7 +22,6 @@ const LEGACY_INCOMING_METHODS = [
     'email',
     'toggle-audio',
     'toggle-chat',
-    'toggle-contact-list',
     'toggle-film-strip',
     'toggle-share-screen',
     'toggle-video',
@@ -65,6 +64,7 @@ export default class PostMessageTransportBackend {
      * transport.
      */
     constructor({ enableLegacyFormat, postisOptions } = {}) {
+        // eslint-disable-next-line new-cap
         this.postis = Postis({
             ...DEFAULT_POSTIS_OPTIONS,
             ...postisOptions
@@ -158,7 +158,7 @@ export default class PostMessageTransportBackend {
             // Transport class. That's why we are passing only the original
             // object passed by the consumer of the Transport class which is
             // message.data.
-            this._sendLegacyMessage(message.data);
+            this._sendLegacyMessage(message.data || {});
         }
     }
 

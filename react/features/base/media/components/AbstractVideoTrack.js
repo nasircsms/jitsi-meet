@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 
 import { trackVideoStarted } from '../../tracks';
@@ -13,44 +14,34 @@ import { Video } from './_';
  */
 export default class AbstractVideoTrack extends Component {
     /**
-     * Default values for AbstractVideoTrack component's properties.
-     *
-     * @static
-     */
-    static defaultProps = {
-        /**
-         * Dispatch an action when the video starts playing.
-         */
-        triggerOnPlayingUpdate: true
-    };
-
-    /**
      * AbstractVideoTrack component's property types.
      *
      * @static
      */
     static propTypes = {
-        dispatch: React.PropTypes.func,
+        dispatch: PropTypes.func,
 
         /**
-         * Whether or not the store should be updated about the playing status
-         * of the video. Defaults to true. One use case for setting this prop
-         * to false is using multiple locals streams from the same video source,
-         * such as when previewing video. In those cases, the store may have no
-         * need to be updated about the existence or state of the stream.
+         * Callback to invoke when the {@link Video} of
+         * {@code AbstractVideoTrack} is clicked/pressed.
          */
-        triggerOnPlayingUpdate: React.PropTypes.bool,
+        onPress: PropTypes.func,
 
-        videoTrack: React.PropTypes.object,
+        videoTrack: PropTypes.object,
 
-        waitForVideoStarted: React.PropTypes.bool,
+        waitForVideoStarted: PropTypes.bool,
 
         /**
          * The z-order of the Video of AbstractVideoTrack in the stacking space
          * of all Videos. For more details, refer to the zOrder property of the
          * Video class for React Native.
          */
-        zOrder: React.PropTypes.number
+        zOrder: PropTypes.number,
+
+        /**
+         * Indicates whether zooming (pinch to zoom and/or drag) is enabled.
+         */
+        zoomEnabled: PropTypes.bool
     };
 
     /**
@@ -94,7 +85,7 @@ export default class AbstractVideoTrack extends Component {
      * @returns {ReactElement}
      */
     render() {
-        const videoTrack = this.state.videoTrack;
+        const { videoTrack } = this.state;
         let render;
 
         if (this.props.waitForVideoStarted) {
@@ -122,12 +113,21 @@ export default class AbstractVideoTrack extends Component {
         const stream
             = render ? videoTrack.jitsiTrack.getOriginalStream() : null;
 
+        // Actual zoom is currently only enabled if the stream is a desktop
+        // stream.
+        const zoomEnabled
+            = this.props.zoomEnabled
+                && stream
+                && videoTrack.videoType === 'desktop';
+
         return (
             <Video
                 mirror = { videoTrack && videoTrack.mirror }
                 onPlaying = { this._onVideoPlaying }
+                onPress = { this.props.onPress }
                 stream = { stream }
-                zOrder = { this.props.zOrder } />
+                zOrder = { this.props.zOrder }
+                zoomEnabled = { zoomEnabled } />
         );
     }
 
@@ -138,11 +138,9 @@ export default class AbstractVideoTrack extends Component {
      * @returns {void}
      */
     _onVideoPlaying() {
-        const videoTrack = this.props.videoTrack;
+        const { videoTrack } = this.props;
 
-        if (this.props.triggerOnPlayingUpdate
-            && videoTrack
-            && !videoTrack.videoStarted) {
+        if (videoTrack && !videoTrack.videoStarted) {
             this.props.dispatch(trackVideoStarted(videoTrack.jitsiTrack));
         }
     }

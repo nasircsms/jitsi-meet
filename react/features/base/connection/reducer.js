@@ -1,6 +1,7 @@
 /* @flow */
 
-import { assign, ReducerRegistry, set } from '../redux';
+import { SET_ROOM } from '../conference';
+import { assign, set, ReducerRegistry } from '../redux';
 import { parseURIString } from '../util';
 
 import {
@@ -32,6 +33,9 @@ ReducerRegistry.register(
 
         case SET_LOCATION_URL:
             return _setLocationURL(state, action);
+
+        case SET_ROOM:
+            return _setRoom(state);
         }
 
         return state;
@@ -75,7 +79,8 @@ function _connectionEstablished(
         { connection }: { connection: Object }) {
     return assign(state, {
         connecting: undefined,
-        connection
+        connection,
+        error: undefined
     });
 }
 
@@ -91,14 +96,24 @@ function _connectionEstablished(
  */
 function _connectionFailed(
         state: Object,
-        { connection }: { connection: Object }) {
-    if (state.connection && state.connection !== connection) {
+        { connection, error }: {
+            connection: Object,
+            error: Object | string
+        }) {
+
+    // The current (similar to getCurrentConference in
+    // base/conference/functions.js) connection which is connecting or
+    // connected:
+    const connection_ = state.connection || state.connecting;
+
+    if (connection_ && connection_ !== connection) {
         return state;
     }
 
     return assign(state, {
         connecting: undefined,
-        connection: undefined
+        connection: undefined,
+        error
     });
 }
 
@@ -115,7 +130,10 @@ function _connectionFailed(
 function _connectionWillConnect(
         state: Object,
         { connection }: { connection: Object }) {
-    return set(state, 'connecting', connection);
+    return assign(state, {
+        connecting: connection,
+        error: undefined
+    });
 }
 
 /**
@@ -150,8 +168,8 @@ function _constructOptions(locationURL: URL) {
 
     return {
         bosh:
-            `${String(protocol)}//${domain}${locationURI.contextRoot || '/'
-                }http-bind`,
+            `${String(protocol)}//${domain}${
+                locationURI.contextRoot || '/'}http-bind`,
         hosts: {
             domain,
 
@@ -179,4 +197,17 @@ function _setLocationURL(
         locationURL,
         options: locationURL ? _constructOptions(locationURL) : undefined
     });
+}
+
+/**
+ * Reduces a specific redux action {@link SET_ROOM} of the feature
+ * base/connection.
+ *
+ * @param {Object} state - The redux state of the feature base/connection.
+ * @private
+ * @returns {Object} The new state of the feature base/connection after the
+ * reduction of the specified action.
+ */
+function _setRoom(state: Object) {
+    return set(state, 'error', undefined);
 }

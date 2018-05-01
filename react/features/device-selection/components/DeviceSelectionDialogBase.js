@@ -1,8 +1,11 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 
 import { StatelessDialog } from '../../base/dialog';
 import { translate } from '../../base/i18n';
 import { createLocalTrack } from '../../base/lib-jitsi-meet';
+
+import { shouldShowOnlyDeviceSelection } from '../../settings';
 
 import AudioInputPreview from './AudioInputPreview';
 import AudioOutputPreview from './AudioOutputPreview';
@@ -25,30 +28,30 @@ class DeviceSelectionDialogBase extends Component {
          * All known audio and video devices split by type. This prop comes from
          * the app state.
          */
-        availableDevices: React.PropTypes.object,
+        availableDevices: PropTypes.object,
 
         /**
          * Closes the dialog.
          */
-        closeModal: React.PropTypes.func,
+        closeModal: PropTypes.func,
 
         /**
          * Device id for the current audio input device. This device will be set
          * as the default audio input device to preview.
          */
-        currentAudioInputId: React.PropTypes.string,
+        currentAudioInputId: PropTypes.string,
 
         /**
          * Device id for the current audio output device. This device will be
          * set as the default audio output device to preview.
          */
-        currentAudioOutputId: React.PropTypes.string,
+        currentAudioOutputId: PropTypes.string,
 
         /**
          * Device id for the current video input device. This device will be set
          * as the default video input device to preview.
          */
-        currentVideoInputId: React.PropTypes.string,
+        currentVideoInputId: PropTypes.string,
 
         /**
          * Whether or not the audio selector can be interacted with. If true,
@@ -56,38 +59,38 @@ class DeviceSelectionDialogBase extends Component {
          * specifically used to prevent audio device changing in Firefox, which
          * currently does not work due to a browser-side regression.
          */
-        disableAudioInputChange: React.PropTypes.bool,
+        disableAudioInputChange: PropTypes.bool,
 
         /**
          * Disables dismissing the dialog when the blanket is clicked. Enabled
          * by default.
          */
-        disableBlanketClickDismiss: React.PropTypes.bool,
+        disableBlanketClickDismiss: PropTypes.bool,
 
         /**
          * True if device changing is configured to be disallowed. Selectors
          * will display as disabled.
          */
-        disableDeviceChange: React.PropTypes.bool,
+        disableDeviceChange: PropTypes.bool,
 
         /**
          * Function that checks whether or not a new audio input source can be
          * selected.
          */
-        hasAudioPermission: React.PropTypes.func,
+        hasAudioPermission: PropTypes.func,
 
         /**
          * Function that checks whether or not a new video input sources can be
          * selected.
          */
-        hasVideoPermission: React.PropTypes.func,
+        hasVideoPermission: PropTypes.func,
 
         /**
          * If true, the audio meter will not display. Necessary for browsers or
          * configurations that do not support local stats to prevent a
          * non-responsive mic preview from displaying.
          */
-        hideAudioInputPreview: React.PropTypes.bool,
+        hideAudioInputPreview: PropTypes.bool,
 
         /**
          * Whether or not the audio output source selector should display. If
@@ -95,27 +98,27 @@ class DeviceSelectionDialogBase extends Component {
          * rendered. This is specifically used for hiding audio output on
          * temasys browsers which do not support such change.
          */
-        hideAudioOutputSelect: React.PropTypes.bool,
+        hideAudioOutputSelect: PropTypes.bool,
 
         /**
          * Function that sets the audio input device.
          */
-        setAudioInputDevice: React.PropTypes.func,
+        setAudioInputDevice: PropTypes.func,
 
         /**
          * Function that sets the audio output device.
          */
-        setAudioOutputDevice: React.PropTypes.func,
+        setAudioOutputDevice: PropTypes.func,
 
         /**
          * Function that sets the video input device.
          */
-        setVideoInputDevice: React.PropTypes.func,
+        setVideoInputDevice: PropTypes.func,
 
         /**
          * Invoked to obtain translated strings.
          */
-        t: React.PropTypes.func
+        t: PropTypes.func
     };
 
     /**
@@ -217,7 +220,7 @@ class DeviceSelectionDialogBase extends Component {
                 okTitleKey = { 'dialog.Save' }
                 onCancel = { this._onCancel }
                 onSubmit = { this._onSubmit }
-                titleKey = 'deviceSelection.deviceSettings'>
+                titleKey = { this._getModalTitle() }>
                 <div className = 'device-selection'>
                     <div className = 'device-selection-column column-video'>
                         <div className = 'device-selection-video-container'>
@@ -272,6 +275,22 @@ class DeviceSelectionDialogBase extends Component {
     _disposeVideoPreview() {
         return this.state.previewVideoTrack
             ? this.state.previewVideoTrack.dispose() : Promise.resolve();
+    }
+
+    /**
+     * Returns what the title of the device selection modal should be.
+     *
+     * Note: This is temporary logic to appease design sooner. Device selection
+     * and all other settings will be combined into one modal.
+     *
+     * @returns {string}
+     */
+    _getModalTitle() {
+        if (shouldShowOnlyDeviceSelection()) {
+            return 'settings.title';
+        }
+
+        return 'deviceSelection.deviceSettings';
     }
 
     /**
@@ -361,12 +380,18 @@ class DeviceSelectionDialogBase extends Component {
      * Creates a DeviceSelector instance based on the passed in configuration.
      *
      * @private
-     * @param {Object} props - The props for the DeviceSelector.
+     * @param {Object} deviceSelectorProps - The props for the DeviceSelector.
      * @returns {ReactElement}
      */
-    _renderSelector(props) {
+    _renderSelector(deviceSelectorProps) {
+
         return (
-            <DeviceSelector { ...props } />
+            <div key = { deviceSelectorProps.label }>
+                <div className = 'device-selector-label'>
+                    { this.props.t(deviceSelectorProps.label) }
+                </div>
+                <DeviceSelector { ...deviceSelectorProps } />
+            </div>
         );
     }
 
@@ -418,7 +443,7 @@ class DeviceSelectionDialogBase extends Component {
             });
         }
 
-        return configurations.map(this._renderSelector);
+        return configurations.map(config => this._renderSelector(config));
     }
 
     /**
@@ -512,6 +537,10 @@ class DeviceSelectionDialogBase extends Component {
             this._disposeVideoPreview()
                 .then(() => createLocalTrack('video', deviceId))
                 .then(jitsiLocalTrack => {
+                    if (!jitsiLocalTrack) {
+                        return Promise.reject();
+                    }
+
                     this.setState({
                         previewVideoTrack: jitsiLocalTrack,
                         previewVideoTrackError: null

@@ -25,8 +25,9 @@ Its constructor gets a number of options:
     * **parentNode**: (optional) HTML DOM Element where the iframe will be added as a child.
     * **configOverwrite**: (optional) JS object with overrides for options defined in [config.js].
     * **interfaceConfigOverwrite**: (optional) JS object with overrides for options defined in [interface_config.js].
-    * **noSsl**: (optional, defaults to true) Boolean indicating if the server should be contacted using HTTP or HTTPS.
+    * **noSSL**: (optional, defaults to true) Boolean indicating if the server should be contacted using HTTP or HTTPS.
     * **jwt**: (optional) [JWT](https://jwt.io/) token.
+    * **onload**: (optional) handler for the iframe onload event.
 
 Example:
 
@@ -96,11 +97,6 @@ api.executeCommand('toggleFilmStrip')
 api.executeCommand('toggleChat')
 ```
 
-* **toggleContactList** - Hides / shows the contact list. No arguments are required.
-```javascript
-api.executeCommand('toggleContactList')
-```
-
 * **toggleShareScreen** - Starts / stops screen sharing. No arguments are required.
 ```javascript
 api.executeCommand('toggleShareScreen')
@@ -140,14 +136,43 @@ The `event` parameter is a String object with the name of the event.
 The `listener` parameter is a Function object with one argument that will be notified when the event occurs with data related to the event.
 
 The following events are currently supported:
+* **avatarChanged** - event notifications about avatar
+changes. The listener will receive an object with the following structure:
+```javascript
+{
+"id": id, // the id of the participant that changed his avatar.
+"avatarURL": avatarURL // the new avatar URL.
+}
+```
+
+* **audioAvailabilityChanged** - event notifications about audio availability status changes. The listener will receive an object with the following structure:
+```javascript
+{
+"available": available // new available status - boolean
+}
+```
+
+* **audioMuteStatusChanged** - event notifications about audio mute status changes. The listener will receive an object with the following structure:
+```javascript
+{
+"muted": muted // new muted status - boolean
+}
+```
+
+* **screenSharingStatusChanged** - receives event notifications about turning on/off the local user screen sharing. The listener will receive object with the following structure:
+```javascript
+{
+"on": on //whether screen sharing is on
+}
+```
 
 * **incomingMessage** - Event notifications about incoming
 messages. The listener will receive an object with the following structure:
 ```javascript
 {
-"from": from,    // JID of the user that sent the message
-"nick": nick,    // the nickname of the user that sent the message
-"message": txt   // the text of the message
+"from": from, // The id of the user that sent the message
+"nick": nick, // the nickname of the user that sent the message
+"message": txt // the text of the message
 }
 ```
 
@@ -155,44 +180,62 @@ messages. The listener will receive an object with the following structure:
 messages. The listener will receive an object with the following structure:
 ```javascript
 {
-"message": txt   // the text of the message
+"message": txt // the text of the message
 }
 ```
 
-* **displayNameChanged** - event notifications about display name
+* **displayNameChange** - event notifications about display name
 changes. The listener will receive an object with the following structure:
 ```javascript
 {
-"jid": jid,                 // the JID of the participant that changed his display name
-"displayname": displayName  // the new display name
+"id": id, // the id of the participant that changed his display name
+"displayname": displayName // the new display name
 }
 ```
 
 * **participantJoined** - event notifications about new participants who join the room. The listener will receive an object with the following structure:
 ```javascript
 {
-"jid": jid   // the JID of the participant
+"id": id, // the id of the participant
+"displayName": displayName // the display name of the participant
 }
 ```
 
 * **participantLeft** - event notifications about participants that leave the room. The listener will receive an object with the following structure:
 ```javascript
 {
-"jid": jid   // the JID of the participant
+"id": id // the id of the participant
 }
 ```
 
 * **videoConferenceJoined** - event notifications fired when the local user has joined the video conference. The listener will receive an object with the following structure:
 ```javascript
 {
-"roomName": room   // the room name of the conference
+"roomName": room, // the room name of the conference
+"id": id, // the id of the local participant
+"displayName": displayName, // the display name of the local participant
+"avatarURL": avatarURL // the avatar URL of the local participant
 }
 ```
 
 * **videoConferenceLeft** - event notifications fired when the local user has left the video conference. The listener will receive an object with the following structure:
 ```javascript
 {
-"roomName": room   // the room name of the conference
+"roomName": room // the room name of the conference
+}
+```
+
+* **videoAvailabilityChanged** - event notifications about video availability status changes. The listener will receive an object with the following structure:
+```javascript
+{
+"available": available // new available status - boolean
+}
+```
+
+* **videoMuteStatusChanged** - event notifications about video mute status changes. The listener will receive an object with the following structure:
+```javascript
+{
+"muted": muted // new muted status - boolean
 }
 ```
 
@@ -236,9 +279,47 @@ You can get the number of participants in the conference with the following API 
 var numberOfParticipants = api.getNumberOfParticipants();
 ```
 
+You can get the avatar URL of a participant in the conference with the following API function:
+```javascript
+var avatarURL = api.getAvatarURL(participantId);
+```
+
+You can get the display name of a participant in the conference with the following API function:
+```javascript
+var displayName = api.getDisplayName(participantId);
+```
+
 You can get the iframe HTML element where Jitsi Meet is loaded with the following API function:
 ```javascript
 var iframe = api.getIFrame();
+```
+
+You can check whether the audio is muted with the following API function:
+```javascript
+isAudioMuted().then(function(muted) {
+    ...
+});
+```
+
+You can check whether the video is muted with the following API function:
+```javascript
+isVideoMuted().then(function(muted) {
+    ...
+});
+```
+
+You can check whether the audio is available with the following API function:
+```javascript
+isAudioAvailable().then(function(available) {
+    ...
+});
+```
+
+You can check whether the video is available with the following API function:
+```javascript
+isVideoAvailable().then(function(available) {
+    ...
+});
 ```
 
 You can remove the embedded Jitsi Meet Conference with the following API function:

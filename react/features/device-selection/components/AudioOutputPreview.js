@@ -1,6 +1,8 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 
 import { translate } from '../../base/i18n';
+import { Audio } from '../../base/media';
 
 const TEST_SOUND_PATH = 'sounds/ring.wav';
 
@@ -19,12 +21,12 @@ class AudioOutputPreview extends Component {
         /**
          * The device id of the audio output device to use.
          */
-        deviceId: React.PropTypes.string,
+        deviceId: PropTypes.string,
 
         /**
          * Invoked to obtain translated strings.
          */
-        t: React.PropTypes.func
+        t: PropTypes.func
     };
 
     /**
@@ -76,9 +78,8 @@ class AudioOutputPreview extends Component {
                 <a onClick = { this._onClick }>
                     { this.props.t('deviceSelection.testAudio') }
                 </a>
-                <audio
-                    preload = 'auto'
-                    ref = { this._setAudioElement }
+                <Audio
+                    setRef = { this._setAudioElement }
                     src = { TEST_SOUND_PATH } />
             </div>
         );

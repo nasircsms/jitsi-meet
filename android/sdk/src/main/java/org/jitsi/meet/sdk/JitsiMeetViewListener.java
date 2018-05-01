@@ -26,36 +26,56 @@ public interface JitsiMeetViewListener {
      * Called when joining a conference fails or an ongoing conference is
      * interrupted due to a failure.
      *
-     * @param data - Map with an "error" key describing the problem, and
-     * a "url" key with the conference URL.
+     * @param data Map with an "error" key describing the problem, and a "url"
+     * key with the conference URL.
      */
     void onConferenceFailed(Map<String, Object> data);
 
     /**
      * Called when a conference was joined.
      *
-     * @param data - Map with a "url" key with the conference URL.
+     * @param data Map with a "url" key with the conference URL.
      */
     void onConferenceJoined(Map<String, Object> data);
 
     /**
      * Called when the conference was left, typically after hanging up.
      *
-     * @param data - Map with a "url" key with the conference URL.
+     * @param data Map with a "url" key with the conference URL.
      */
     void onConferenceLeft(Map<String, Object> data);
 
     /**
      * Called before the conference is joined.
      *
-     * @param data - Map with a "url" key with the conference URL.
+     * @param data Map with a "url" key with the conference URL.
      */
     void onConferenceWillJoin(Map<String, Object> data);
 
     /**
      * Called before the conference is left.
      *
-     * @param data - Map with a "url" key with the conference URL.
+     * @param data Map with a "url" key with the conference URL.
      */
     void onConferenceWillLeave(Map<String, Object> data);
+
+    /**
+     * Called when the add user button is tapped.
+     *
+     * @param inviteSearchController {@code InviteSearchController} scoped
+     * for this user invite flow. The {@code InviteSearchController} is used
+     * to start user queries and accepts an {@code InviteSearchControllerDelegate}
+     * for receiving user query responses.
+     */
+    void launchNativeInvite(InviteSearchController inviteSearchController);
+
+    /**
+     * Called when loading the main configuration file from the Jitsi Meet
+     * deployment fails.
+     *
+     * @param data Map with an "error" key with the error and a "url" key with
+     * the conference URL which necessitated the loading of the configuration
+     * file.
+     */
+    void onLoadConfigError(Map<String, Object> data);
 }

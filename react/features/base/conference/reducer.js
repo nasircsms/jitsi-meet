@@ -1,7 +1,9 @@
-import { LOCKED_LOCALLY, LOCKED_REMOTELY } from '../../room-lock';
+// @flow
 
+import { CONNECTION_WILL_CONNECT } from '../connection';
 import { JitsiConferenceErrors } from '../lib-jitsi-meet';
 import { assign, ReducerRegistry, set } from '../redux';
+import { LOCKED_LOCALLY, LOCKED_REMOTELY } from '../../room-lock';
 
 import {
     CONFERENCE_FAILED,
@@ -10,11 +12,17 @@ import {
     CONFERENCE_WILL_JOIN,
     CONFERENCE_WILL_LEAVE,
     LOCK_STATE_CHANGED,
+    P2P_STATUS_CHANGED,
     SET_AUDIO_ONLY,
-    SET_LARGE_VIDEO_HD_STATUS,
+    SET_DESKTOP_SHARING_ENABLED,
+    SET_FOLLOW_ME,
     SET_PASSWORD,
-    SET_ROOM
+    SET_RECEIVE_VIDEO_QUALITY,
+    SET_ROOM,
+    SET_SIP_GATEWAY_ENABLED,
+    SET_START_MUTED_POLICY
 } from './actionTypes';
+import { VIDEO_QUALITY_LEVELS } from './constants';
 import { isRoomValid } from './functions';
 
 /**
@@ -38,20 +46,45 @@ ReducerRegistry.register('features/base/conference', (state = {}, action) => {
     case CONFERENCE_WILL_LEAVE:
         return _conferenceWillLeave(state, action);
 
+    case CONNECTION_WILL_CONNECT:
+        return set(state, 'authRequired', undefined);
+
     case LOCK_STATE_CHANGED:
         return _lockStateChanged(state, action);
+
+    case P2P_STATUS_CHANGED:
+        return _p2pStatusChanged(state, action);
 
     case SET_AUDIO_ONLY:
         return _setAudioOnly(state, action);
 
-    case SET_LARGE_VIDEO_HD_STATUS:
-        return _setLargeVideoHDStatus(state, action);
+    case SET_DESKTOP_SHARING_ENABLED:
+        return _setDesktopSharingEnabled(state, action);
+
+    case SET_FOLLOW_ME:
+        return {
+            ...state,
+            followMeEnabled: action.enabled
+        };
 
     case SET_PASSWORD:
         return _setPassword(state, action);
 
+    case SET_RECEIVE_VIDEO_QUALITY:
+        return _setReceiveVideoQuality(state, action);
+
     case SET_ROOM:
         return _setRoom(state, action);
+
+    case SET_SIP_GATEWAY_ENABLED:
+        return _setSIPGatewayEnabled(state, action);
+
+    case SET_START_MUTED_POLICY:
+        return {
+            ...state,
+            startAudioMutedPolicy: action.startAudioMutedPolicy,
+            startVideoMutedPolicy: action.startVideoMutedPolicy
+        };
     }
 
     return state;
@@ -68,17 +101,31 @@ ReducerRegistry.register('features/base/conference', (state = {}, action) => {
  * reduction of the specified action.
  */
 function _conferenceFailed(state, { conference, error }) {
-    if (state.conference && state.conference !== conference) {
+    // The current (similar to getCurrentConference in
+    // base/conference/functions.js) conference which is joining or joined:
+    const conference_ = state.conference || state.joining;
+
+    if (conference_ && conference_ !== conference) {
         return state;
     }
 
-    const passwordRequired
-        = JitsiConferenceErrors.PASSWORD_REQUIRED === error
-            ? conference
-            : undefined;
+    let authRequired;
+    let passwordRequired;
+
+    switch (error.name) {
+    case JitsiConferenceErrors.AUTHENTICATION_REQUIRED:
+        authRequired = conference;
+        break;
+
+    case JitsiConferenceErrors.PASSWORD_REQUIRED:
+        passwordRequired = conference;
+        break;
+    }
 
     return assign(state, {
+        authRequired,
         conference: undefined,
+        error,
         joining: undefined,
         leaving: undefined,
 
@@ -119,6 +166,8 @@ function _conferenceJoined(state, { conference }) {
     const locked = conference.room.locked ? LOCKED_REMOTELY : undefined;
 
     return assign(state, {
+        authRequired: undefined,
+
         /**
          * The JitsiConference instance represented by the Redux state of the
          * feature base/conference.
@@ -135,7 +184,15 @@ function _conferenceJoined(state, { conference }) {
          * @type {boolean}
          */
         locked,
-        passwordRequired: undefined
+        passwordRequired: undefined,
+
+        /**
+         * The current resolution restraint on receiving remote video. By
+         * default the conference will send the highest level possible.
+         *
+         * @type number
+         */
+        receiveVideoQuality: VIDEO_QUALITY_LEVELS.HIGH
     });
 }
 
@@ -150,18 +207,34 @@ function _conferenceJoined(state, { conference }) {
  * reduction of the specified action.
  */
 function _conferenceLeft(state, { conference }) {
-    if (state.conference !== conference) {
-        return state;
+    let nextState = state;
+
+    if (state.authRequired === conference) {
+        nextState = set(nextState, 'authRequired', undefined);
+    }
+    if (state.conference === conference) {
+        nextState = assign(nextState, {
+            conference: undefined,
+            joining: undefined,
+            leaving: undefined,
+
+            // XXX Clear/unset locked & password here for a conference which has
+            // been LOCKED_LOCALLY.
+            locked: undefined,
+            password: undefined
+        });
+    }
+    if (state.passwordRequired === conference) {
+        nextState = assign(nextState, {
+            // XXX Clear/unset locked & password here for a conference which has
+            // been LOCKED_REMOTELY.
+            locked: undefined,
+            password: undefined,
+            passwordRequired: undefined
+        });
     }
 
-    return assign(state, {
-        conference: undefined,
-        joining: undefined,
-        leaving: undefined,
-        locked: undefined,
-        password: undefined,
-        passwordRequired: undefined
-    });
+    return nextState;
 }
 
 /**
@@ -175,7 +248,10 @@ function _conferenceLeft(state, { conference }) {
  * reduction of the specified action.
  */
 function _conferenceWillJoin(state, { conference }) {
-    return set(state, 'joining', conference);
+    return assign(state, {
+        error: undefined,
+        joining: conference
+    });
 }
 
 /**
@@ -194,6 +270,7 @@ function _conferenceWillLeave(state, { conference }) {
     }
 
     return assign(state, {
+        authRequired: undefined,
         joining: undefined,
 
         /**
@@ -229,6 +306,20 @@ function _lockStateChanged(state, { conference, locked }) {
 }
 
 /**
+ * Reduces a specific Redux action P2P_STATUS_CHANGED of the feature
+ * base/conference.
+ *
+ * @param {Object} state - The Redux state of the feature base/conference.
+ * @param {Action} action - The Redux action P2P_STATUS_CHANGED to reduce.
+ * @private
+ * @returns {Object} The new state of the feature base/conference after the
+ * reduction of the specified action.
+ */
+function _p2pStatusChanged(state, action) {
+    return set(state, 'p2p', action.p2p);
+}
+
+/**
  * Reduces a specific Redux action SET_AUDIO_ONLY of the feature
  * base/conference.
  *
@@ -243,18 +334,18 @@ function _setAudioOnly(state, action) {
 }
 
 /**
- * Reduces a specific Redux action SET_LARGE_VIDEO_HD_STATUS of the feature
+ * Reduces a specific Redux action SET_DESKTOP_SHARING_ENABLED of the feature
  * base/conference.
  *
  * @param {Object} state - The Redux state of the feature base/conference.
- * @param {Action} action - The Redux action SET_LARGE_VIDEO_HD_STATUS to
+ * @param {Action} action - The Redux action SET_DESKTOP_SHARING_ENABLED to
  * reduce.
  * @private
  * @returns {Object} The new state of the feature base/conference after the
  * reduction of the specified action.
  */
-function _setLargeVideoHDStatus(state, action) {
-    return set(state, 'isLargeVideoHD', action.isLargeVideoHD);
+function _setDesktopSharingEnabled(state, action) {
+    return set(state, 'desktopSharingEnabled', action.desktopSharingEnabled);
 }
 
 /**
@@ -295,6 +386,21 @@ function _setPassword(state, { conference, method, password }) {
 }
 
 /**
+ * Reduces a specific Redux action SET_RECEIVE_VIDEO_QUALITY of the feature
+ * base/conference.
+ *
+ * @param {Object} state - The Redux state of the feature base/conference.
+ * @param {Action} action - The Redux action SET_RECEIVE_VIDEO_QUALITY to
+ * reduce.
+ * @private
+ * @returns {Object} The new state of the feature base/conference after the
+ * reduction of the specified action.
+ */
+function _setReceiveVideoQuality(state, action) {
+    return set(state, 'receiveVideoQuality', action.receiveVideoQuality);
+}
+
+/**
  * Reduces a specific Redux action SET_ROOM of the feature base/conference.
  *
  * @param {Object} state - The Redux state of the feature base/conference.
@@ -304,7 +410,7 @@ function _setPassword(state, { conference, method, password }) {
  * reduction of the specified action.
  */
 function _setRoom(state, action) {
-    let room = action.room;
+    let { room } = action;
 
     if (!isRoomValid(room)) {
         // Technically, there are multiple values which don't represent valid
@@ -318,5 +424,22 @@ function _setRoom(state, action) {
      *
      * @type {string}
      */
-    return set(state, 'room', room);
+    return assign(state, {
+        error: undefined,
+        room
+    });
+}
+
+/**
+ * Reduces a specific Redux action SET_SIP_GATEWAY_ENABLED of the feature
+ * base/conference.
+ *
+ * @param {Object} state - The Redux state of the feature base/conference.
+ * @param {Action} action - The Redux action SET_SIP_GATEWAY_ENABLED to reduce.
+ * @private
+ * @returns {Object} The new state of the feature base/conference after the
+ * reduction of the specified action.
+ */
+function _setSIPGatewayEnabled(state, action) {
+    return set(state, 'isSIPGatewayEnabled', action.isSIPGatewayEnabled);
 }

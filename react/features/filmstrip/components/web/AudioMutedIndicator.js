@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 
 import BaseIndicator from './BaseIndicator';
@@ -9,6 +10,18 @@ import BaseIndicator from './BaseIndicator';
  */
 class AudioMutedIndicator extends Component {
     /**
+     * {@code AudioMutedIndicator} component's property types.
+     *
+     * @static
+     */
+    static propTypes = {
+        /**
+         * From which side of the indicator the tooltip should appear from.
+         */
+        tooltipPosition: PropTypes.string
+    };
+
+    /**
      * Implements React's {@link Component#render()}.
      *
      * @inheritdoc
@@ -19,7 +32,8 @@ class AudioMutedIndicator extends Component {
             <BaseIndicator
                 className = 'audioMuted toolbar-icon'
                 iconClassName = 'icon-mic-disabled'
-                tooltipKey = 'videothumbnail.mute' />
+                tooltipKey = 'videothumbnail.mute'
+                tooltipPosition = { this.props.tooltipPosition } />
         );
     }
 }

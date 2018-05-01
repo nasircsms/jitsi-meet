@@ -1,6 +1,13 @@
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
+import { connect } from 'react-redux';
 
+import {
+    createRemoteVideoMenuButtonEvent,
+    sendAnalytics
+} from '../../analytics';
 import { translate } from '../../base/i18n';
+import { kickParticipant } from '../../base/participants';
 
 import RemoteVideoMenuButton from './RemoteVideoMenuButton';
 
@@ -18,20 +25,39 @@ class KickButton extends Component {
      */
     static propTypes = {
         /**
-         * The callback to invoke when the component is clicked.
+         * Invoked to signal the participant with the passed in participantID
+         * should be removed from the conference.
          */
-        onClick: React.PropTypes.func,
+        dispatch: PropTypes.func,
+
+        /**
+         * Callback to invoke when {@code KickButton} is clicked.
+         */
+        onClick: PropTypes.func,
 
         /**
          * The ID of the participant linked to the onClick callback.
          */
-        participantID: React.PropTypes.string,
+        participantID: PropTypes.string,
 
         /**
          * Invoked to obtain translated strings.
          */
-        t: React.PropTypes.func
+        t: PropTypes.func
     };
+
+    /**
+     * Initializes a new {@code KickButton} instance.
+     *
+     * @param {Object} props - The read-only React Component props with which
+     * the new instance is to be initialized.
+     */
+    constructor(props) {
+        super(props);
+
+        // Bind event handlers so they are only bound once for every instance.
+        this._onClick = this._onClick.bind(this);
+    }
 
     /**
      * Implements React's {@link Component#render()}.
@@ -40,16 +66,38 @@ class KickButton extends Component {
      * @returns {ReactElement}
      */
     render() {
-        const { onClick, participantID, t } = this.props;
+        const { participantID, t } = this.props;
 
         return (
             <RemoteVideoMenuButton
                 buttonText = { t('videothumbnail.kick') }
                 iconClass = 'icon-kick'
                 id = { `ejectlink_${participantID}` }
-                onClick = { onClick } />
+                onClick = { this._onClick } />
         );
+    }
+
+    /**
+     * Remove the participant with associated participantID from the conference.
+     *
+     * @private
+     * @returns {void}
+     */
+    _onClick() {
+        const { dispatch, onClick, participantID } = this.props;
+
+        sendAnalytics(createRemoteVideoMenuButtonEvent(
+            'kick.button',
+            {
+                'participant_id': participantID
+            }));
+
+        dispatch(kickParticipant(participantID));
+
+        if (onClick) {
+            onClick();
+        }
     }
 }
 
-export default translate(KickButton);
+export default translate(connect()(KickButton));

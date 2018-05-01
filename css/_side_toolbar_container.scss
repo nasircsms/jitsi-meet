@@ -1,6 +1,37 @@
 /**
  * Toolbar side panel main container element.
  */
+.use-new-toolbox #sideToolbarContainer {
+    background-color: $newToolbarBackgroundColor;
+
+    /**
+     * Make the sidebar flush with the top of the toolbar. Take the size of
+     * the toolbar and subtract from 100%.
+     */
+    height: calc(100% - #{$newToolbarSizeWithPadding});
+    left: 0;
+
+    .side-toolbar-close {
+        background: gray;
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-radius: 100%;
+        color: white;
+        cursor:pointer;
+        height: 10px;
+        line-height: 10px;
+        padding: 4px;
+        position: absolute;
+        right: 5px;
+        text-align: center;
+        top: 5px;
+        width: 10px;
+        z-index: 1;
+    }
+
+    #chatconversation {
+        top: 15px;
+    }
+}
 #sideToolbarContainer {
     background-color: $sideToolbarContainerBg;
     height: 100%;
@@ -22,8 +53,10 @@
     /**
      * Form elements and blocks.
      */
-    input, select, a,
-    .sideToolbarBlock, .form-control, .button-control {
+    input,
+    a,
+    .sideToolbarBlock,
+    .form-control {
         display: block;
         margin-top: 15px;
         margin-left: 10%;
@@ -34,23 +67,15 @@
      * Specify styling of elements inside a block.
      */
     .sideToolbarBlock {
-        input, button, a, select {
+        input, a {
             margin-left: 0;
             margin-top: 5px;
             width: 100%;
         }
-        input[type='checkbox'] {
-            display: inline;
-            width: auto !important;
-            > label {
-                margin-top: 5px;
-                width: 80%;
-            }
-        }
     }
 
     /**
-     * Inner container, for example contact list, settings or profile.
+     * Inner container, for example settings or profile.
      */
     .sideToolbarContainer__inner {
         display: none;
@@ -81,41 +106,34 @@
         }
 
         /**
-         * Subtitle specific properties.
-         */
-        div.subTitle {
-            color: $defaultSideBarFontColor !important;
-            font-size: 11px;
-            font-weight: 500;
-            margin-left: 10%;
-            text-align: left;
-        }
-
-        /**
          * First element after a title.
          */
         .first {
             margin-top: 0 !important;
         }
-
-        /**
-         * Buttons in the side toolbar container.
-         */
-        .button-control {
-            margin: 9px 0;
-            width: 100%;
-        }
     }
-}
 
-#device_settings {
-    width : auto !important;
-    text-align: center;
-}
+    .settings-menu {
+        display: flex;
+        flex-direction: column;
+        padding-left: 10%;
+        padding-right: 10%;
 
-#deviceOptionsWrapper {
-    button {
-        float: none;
+        .moderator-checkbox {
+            display: inline-block;
+            margin: 0 5px 0;
+            width: auto;
+        }
+
+        .moderator-option {
+            margin-top: 15px;
+        }
+
+        .subTitle {
+            color: $defaultSideBarFontColor;
+            font-size: 11px;
+            font-weight: 500;
+        }
     }
 }
 

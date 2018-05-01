@@ -1,6 +1,7 @@
 /* global APP */
 
-import JitsiMeetJS, { JitsiTrackEvents } from '../lib-jitsi-meet';
+import JitsiMeetJS, { JitsiTrackErrors, JitsiTrackEvents }
+    from '../lib-jitsi-meet';
 import { MEDIA_TYPE } from '../media';
 
 const logger = require('jitsi-meet-logger').getLogger(__filename);
@@ -23,7 +24,7 @@ const logger = require('jitsi-meet-logger').getLogger(__filename);
  * is to execute and from which state such as {@code config} is to be retrieved.
  * @returns {Promise<JitsiLocalTrack[]>}
  */
-export function createLocalTracks(
+export function createLocalTracksF(
         options,
         firePermissionPromptIsShownEvent,
         store) {
@@ -45,6 +46,8 @@ export function createLocalTracks(
     }
 
     const {
+        constraints,
+        desktopSharingFrameRate,
         firefox_fake_device, // eslint-disable-line camelcase
         resolution
     } = store.getState()['features/base/config'];
@@ -53,8 +56,10 @@ export function createLocalTracks(
         JitsiMeetJS.createLocalTracks(
             {
                 cameraDeviceId,
+                constraints,
                 desktopSharingExtensionExternalInstallation:
                     options.desktopSharingExtensionExternalInstallation,
+                desktopSharingFrameRate,
                 desktopSharingSources: options.desktopSharingSources,
 
                 // Copy array to avoid mutations inside library.
@@ -73,7 +78,8 @@ export function createLocalTracks(
                 tracks.forEach(track =>
                     track.on(
                         JitsiTrackEvents.NO_DATA_FROM_SOURCE,
-                        APP.UI.showTrackNotWorkingDialog.bind(null, track)));
+                        APP.UI.showTrackNotWorkingDialog.bind(
+                            null, track.isAudioTrack())));
             }
 
             return tracks;
@@ -100,10 +106,40 @@ export function getLocalAudioTrack(tracks) {
  *
  * @param {Track[]} tracks - List of all tracks.
  * @param {MEDIA_TYPE} mediaType - Media type.
+ * @param {boolean} [includePending] - Indicates whether a local track is to be
+ * returned if it is still pending. A local track is pending if
+ * {@code getUserMedia} is still executing to create it and, consequently, its
+ * {@code jitsiTrack} property is {@code undefined}. By default a pending local
+ * track is not returned.
  * @returns {(Track|undefined)}
  */
-export function getLocalTrack(tracks, mediaType) {
-    return tracks.find(t => t.local && t.mediaType === mediaType);
+export function getLocalTrack(tracks, mediaType, includePending = false) {
+    return (
+        getLocalTracks(tracks, includePending)
+            .find(t => t.mediaType === mediaType));
+}
+
+/**
+ * Returns an array containing the local tracks with or without a (valid)
+ * {@code JitsiTrack}.
+ *
+ * @param {Track[]} tracks - An array containing all local tracks.
+ * @param {boolean} [includePending] - Indicates whether a local track is to be
+ * returned if it is still pending. A local track is pending if
+ * {@code getUserMedia} is still executing to create it and, consequently, its
+ * {@code jitsiTrack} property is {@code undefined}. By default a pending local
+ * track is not returned.
+ * @returns {Track[]}
+ */
+export function getLocalTracks(tracks, includePending = false) {
+    // XXX A local track is considered ready only once it has its `jitsiTrack`
+    // property set by the `TRACK_ADDED` action. Until then there is a stub
+    // added just before the `getUserMedia` call with a cancellable
+    // `gumInProgress` property which then can be used to destroy the track that
+    // has not yet been added to the redux store. Once GUM is cancelled, it will
+    // never make it to the store nor there will be any
+    // `TRACK_ADDED`/`TRACK_REMOVED` actions dispatched for it.
+    return tracks.filter(t => t.local && (t.jitsiTrack || includePending));
 }
 
 /**
@@ -154,4 +190,48 @@ export function getTrackByJitsiTrack(tracks, jitsiTrack) {
  */
 export function getTracksByMediaType(tracks, mediaType) {
     return tracks.filter(t => t.mediaType === mediaType);
+}
+
+/**
+ * Checks if the first local track in the given tracks set is muted.
+ *
+ * @param {Track[]} tracks - List of all tracks.
+ * @param {MEDIA_TYPE} mediaType - The media type of tracks to be checked.
+ * @returns {boolean} True if local track is muted or false if the track is
+ * unmuted or if there are no local tracks of the given media type in the given
+ * set of tracks.
+ */
+export function isLocalTrackMuted(tracks, mediaType) {
+    const track = getLocalTrack(tracks, mediaType);
+
+    return !track || track.muted;
+}
+
+/**
+ * Mutes or unmutes a specific {@code JitsiLocalTrack}. If the muted state of
+ * the specified {@code track} is already in accord with the specified
+ * {@code muted} value, then does nothing.
+ *
+ * @param {JitsiLocalTrack} track - The {@code JitsiLocalTrack} to mute or
+ * unmute.
+ * @param {boolean} muted - If the specified {@code track} is to be muted, then
+ * {@code true}; otherwise, {@code false}.
+ * @returns {Promise}
+ */
+export function setTrackMuted(track, muted) {
+    muted = Boolean(muted); // eslint-disable-line no-param-reassign
+
+    if (track.isMuted() === muted) {
+        return Promise.resolve();
+    }
+
+    const f = muted ? 'mute' : 'unmute';
+
+    return track[f]().catch(error => {
+        // Track might be already disposed so ignore such an error.
+        if (error.name !== JitsiTrackErrors.TRACK_IS_DISPOSED) {
+            // FIXME Emit mute failed, so that the app can show error dialog.
+            console.error(`set track ${f} failed`, error);
+        }
+    });
 }

@@ -20,6 +20,14 @@ wget -qO -  https://download.jitsi.org/jitsi-key.gpg.key | apt-key add -
 apt-get update
 ```
 
+(If you get an error:
+E: The method driver /usr/lib/apt/methods/https could not be found.
+run:
+```sh
+apt-get install apt-transport-https
+```
+)
+
 ### Install Jitsi Meet
 
 Note : Something to consider before installation is how you're planning to serve Jitsi Meet. The installer will check if Nginx or Apache is present (with this order) and configure a virtualhost within the web server it finds to serve Jitsi Meet. If none of the above is found it then configures itself to be served via jetty. So if for example you are planning on deploying Jitsi Meet with a web server, you have to make sure to install the server **before** installing jitsi-meet.
@@ -31,6 +39,14 @@ apt-get -y install jitsi-meet
 During the installation, you will be asked to enter the hostname of the Jitsi Meet instance. If you have a FQDN hostname for the instance already set up in DNS, enter it there. If you don't have a resolvable hostname, you can enter the IP address of the machine (if it is static or doesn't change).
 
 This hostname (or IP address) will be used for virtualhost configuration inside the Jitsi Meet and also, you and your correspondents will be using it to access the web conferences.
+
+### Generate a Let's Encrypt certificate 
+
+Simply run the following in your shell
+
+```sh
+/usr/share/jitsi-meet/scripts/install-letsencrypt-cert.sh
+```
 
 #### Advanced configuration
 If installation is on a machine behind NAT further configuration of jitsi-videobridge is needed in order for it to be accessible.
@@ -76,7 +92,7 @@ Enjoy!
 ## Uninstall
 
 ```sh
-apt-get purge jigasi jitsi-meet jitsi-meet-web-config jitsi-meet-web jicofo jitsi-videobridge
+apt-get purge jigasi jitsi-meet jitsi-meet-web-config jitsi-meet-prosody jitsi-meet-web jicofo jitsi-videobridge
 ```
 
 Sometimes the following packages will fail to uninstall properly:

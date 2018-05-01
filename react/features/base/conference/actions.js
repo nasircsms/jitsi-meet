@@ -1,15 +1,25 @@
+// @flow
+
+import UIEvents from '../../../../service/UI/UIEvents';
+
+import {
+    createStartMutedConfigurationEvent,
+    sendAnalytics
+} from '../../analytics';
+import { getName } from '../../app';
 import { JitsiConferenceEvents } from '../lib-jitsi-meet';
 import { setAudioMuted, setVideoMuted } from '../media';
 import {
+    MAX_DISPLAY_NAME_LENGTH,
     dominantSpeakerChanged,
-    getLocalParticipant,
     participantConnectionStatusChanged,
     participantJoined,
     participantLeft,
     participantRoleChanged,
     participantUpdated
 } from '../participants';
-import { trackAdded, trackRemoved } from '../tracks';
+import { getLocalTracks, trackAdded, trackRemoved } from '../tracks';
+import { getJitsiMeetGlobalNS } from '../util';
 
 import {
     CONFERENCE_FAILED,
@@ -17,13 +27,19 @@ import {
     CONFERENCE_LEFT,
     CONFERENCE_WILL_JOIN,
     CONFERENCE_WILL_LEAVE,
+    DATA_CHANNEL_OPENED,
+    KICKED_OUT,
     LOCK_STATE_CHANGED,
+    P2P_STATUS_CHANGED,
     SET_AUDIO_ONLY,
-    SET_LARGE_VIDEO_HD_STATUS,
+    SET_DESKTOP_SHARING_ENABLED,
+    SET_FOLLOW_ME,
     SET_LASTN,
     SET_PASSWORD,
     SET_PASSWORD_FAILED,
-    SET_ROOM
+    SET_RECEIVE_VIDEO_QUALITY,
+    SET_ROOM,
+    SET_START_MUTED_POLICY
 } from './actionTypes';
 import {
     AVATAR_ID_COMMAND,
@@ -31,9 +47,16 @@ import {
     EMAIL_COMMAND,
     JITSI_CONFERENCE_URL_KEY
 } from './constants';
-import { _addLocalTracksToConference } from './functions';
+import {
+    _addLocalTracksToConference,
+    sendLocalParticipant
+} from './functions';
 
 import type { Dispatch } from 'redux';
+
+const logger = require('jitsi-meet-logger').getLogger(__filename);
+
+declare var APP: Object;
 
 /**
  * Adds conference (event) listeners.
@@ -57,6 +80,10 @@ function _addConferenceListeners(conference, dispatch) {
         (...args) => dispatch(conferenceLeft(conference, ...args)));
 
     conference.on(
+        JitsiConferenceEvents.KICKED,
+        () => dispatch(kickedOut(conference)));
+
+    conference.on(
         JitsiConferenceEvents.LOCK_STATE_CHANGED,
         (...args) => dispatch(lockStateChanged(conference, ...args)));
 
@@ -65,6 +92,14 @@ function _addConferenceListeners(conference, dispatch) {
     conference.on(
         JitsiConferenceEvents.STARTED_MUTED,
         () => {
+            const audioMuted = Boolean(conference.startAudioMuted);
+            const videoMuted = Boolean(conference.startVideoMuted);
+
+            sendAnalytics(createStartMutedConfigurationEvent(
+                'remote', audioMuted, videoMuted));
+            logger.log(`Start muted: ${audioMuted ? 'audio, ' : ''}${
+                videoMuted ? 'video' : ''}`);
+
             // XXX Jicofo tells lib-jitsi-meet to start with audio and/or video
             // muted i.e. Jicofo expresses an intent. Lib-jitsi-meet has turned
             // Jicofo's intent into reality by actually muting the respective
@@ -73,8 +108,8 @@ function _addConferenceListeners(conference, dispatch) {
             // TODO Maybe the app needs to learn about Jicofo's intent and
             // transfer that intent to lib-jitsi-meet instead of lib-jitsi-meet
             // acting on Jicofo's intent without the app's knowledge.
-            dispatch(setAudioMuted(Boolean(conference.startAudioMuted)));
-            dispatch(setVideoMuted(Boolean(conference.startVideoMuted)));
+            dispatch(setAudioMuted(audioMuted));
+            dispatch(setVideoMuted(videoMuted));
         });
 
     // Dispatches into features/base/tracks follow:
@@ -87,6 +122,12 @@ function _addConferenceListeners(conference, dispatch) {
         t => t && !t.isLocal() && dispatch(trackRemoved(t)));
 
     // Dispatches into features/base/participants follow:
+    conference.on(
+        JitsiConferenceEvents.DISPLAY_NAME_CHANGED,
+        (id, displayName) => dispatch(participantUpdated({
+            id,
+            name: displayName.substr(0, MAX_DISPLAY_NAME_LENGTH)
+        })));
 
     conference.on(
         JitsiConferenceEvents.DOMINANT_SPEAKER_CHANGED,
@@ -131,22 +172,6 @@ function _addConferenceListeners(conference, dispatch) {
 }
 
 /**
- * Sets the data for the local participant to the conference.
- *
- * @param {JitsiConference} conference - The JitsiConference instance.
- * @param {Object} state - The Redux state.
- * @returns {void}
- */
-function _setLocalParticipantData(conference, state) {
-    const { avatarID } = getLocalParticipant(state);
-
-    conference.removeCommand(AVATAR_ID_COMMAND);
-    conference.sendCommand(AVATAR_ID_COMMAND, {
-        value: avatarID
-    });
-}
-
-/**
  * Signals that a specific conference has failed.
  *
  * @param {JitsiConference} conference - The JitsiConference that has failed.
@@ -155,15 +180,20 @@ function _setLocalParticipantData(conference, state) {
  * @returns {{
  *     type: CONFERENCE_FAILED,
  *     conference: JitsiConference,
- *     error: string
+ *     error: Error
  * }}
  * @public
  */
-export function conferenceFailed(conference, error) {
+export function conferenceFailed(conference: Object, error: string) {
     return {
         type: CONFERENCE_FAILED,
         conference,
-        error
+
+        // Make the error resemble an Error instance (to the extent that
+        // jitsi-meet needs it).
+        error: {
+            name: error
+        }
     };
 }
 
@@ -177,7 +207,7 @@ export function conferenceFailed(conference, error) {
  *     conference: JitsiConference
  * }}
  */
-export function conferenceJoined(conference) {
+export function conferenceJoined(conference: Object) {
     return {
         type: CONFERENCE_JOINED,
         conference
@@ -194,7 +224,7 @@ export function conferenceJoined(conference) {
  *     conference: JitsiConference
  * }}
  */
-export function conferenceLeft(conference) {
+export function conferenceLeft(conference: Object) {
     return {
         type: CONFERENCE_LEFT,
         conference
@@ -202,29 +232,43 @@ export function conferenceLeft(conference) {
 }
 
 /**
- * Attaches any pre-existing local media to the conference, before
- * the conference will be joined. Then signals the intention of the application
- * to have the local participant join a specific conference.
+ * Adds any existing local tracks to a specific conference before the conference
+ * is joined. Then signals the intention of the application to have the local
+ * participant join the specified conference.
  *
- * @param {JitsiConference} conference - The JitsiConference instance the
- * local participant will (try to) join.
+ * @param {JitsiConference} conference - The {@code JitsiConference} instance
+ * the local participant will (try to) join.
  * @returns {Function}
  */
-function _conferenceWillJoin(conference) {
-    return (dispatch, getState) => {
+function _conferenceWillJoin(conference: Object) {
+    return (dispatch: Dispatch<*>, getState: Function) => {
         const localTracks
-            = getState()['features/base/tracks']
-                .filter(t => t.local)
+            = getLocalTracks(getState()['features/base/tracks'])
                 .map(t => t.jitsiTrack);
 
         if (localTracks.length) {
             _addLocalTracksToConference(conference, localTracks);
         }
 
-        dispatch({
-            type: CONFERENCE_WILL_JOIN,
-            conference
-        });
+        dispatch(conferenceWillJoin(conference));
+    };
+}
+
+/**
+ * Signals the intention of the application to have the local participant
+ * join the specified conference.
+ *
+ * @param {JitsiConference} conference - The {@code JitsiConference} instance
+ * the local participant will (try to) join.
+ * @returns {{
+ *     type: CONFERENCE_WILL_JOIN,
+ *     conference: JitsiConference
+ * }}
+ */
+export function conferenceWillJoin(conference: Object) {
+    return {
+        type: CONFERENCE_WILL_JOIN,
+        conference
     };
 }
 
@@ -241,7 +285,7 @@ function _conferenceWillJoin(conference) {
  *     conference: JitsiConference
  * }}
  */
-export function conferenceWillLeave(conference) {
+export function conferenceWillLeave(conference: Object) {
     return {
         type: CONFERENCE_WILL_LEAVE,
         conference
@@ -254,7 +298,7 @@ export function conferenceWillLeave(conference) {
  * @returns {Function}
  */
 export function createConference() {
-    return (dispatch, getState) => {
+    return (dispatch: Function, getState: Function) => {
         const state = getState();
         const { connection, locationURL } = state['features/base/connection'];
 
@@ -272,17 +316,67 @@ export function createConference() {
             = connection.initJitsiConference(
 
                 // XXX Lib-jitsi-meet does not accept uppercase letters.
-                room.toLowerCase(),
-                state['features/base/config']);
+                room.toLowerCase(), {
+                    ...state['features/base/config'],
+                    applicationName: getName(),
+                    getWiFiStatsMethod: getJitsiMeetGlobalNS().getWiFiStats
+                });
 
         conference[JITSI_CONFERENCE_URL_KEY] = locationURL;
         dispatch(_conferenceWillJoin(conference));
 
         _addConferenceListeners(conference, dispatch);
 
-        _setLocalParticipantData(conference, state);
+        sendLocalParticipant(state, conference);
 
         conference.join(password);
+    };
+}
+
+/**
+ * Will try to join the conference again in case it failed earlier with
+ * {@link JitsiConferenceErrors.AUTHENTICATION_REQUIRED}. It means that Jicofo
+ * did not allow to create new room from anonymous domain, but it can be tried
+ * again later in case authenticated user created it in the meantime.
+ *
+ * @returns {Function}
+ */
+export function checkIfCanJoin() {
+    return (dispatch: Dispatch<*>, getState: Function) => {
+        const { authRequired, password }
+            = getState()['features/base/conference'];
+
+        authRequired && authRequired.join(password);
+    };
+}
+
+/**
+ * Signals the data channel with the bridge has successfully opened.
+ *
+ * @returns {{
+ *     type: DATA_CHANNEL_OPENED
+ * }}
+ */
+export function dataChannelOpened() {
+    return {
+        type: DATA_CHANNEL_OPENED
+    };
+}
+
+/**
+ * Signals that we've been kicked out of the conference.
+ *
+ * @param {JitsiConference} conference - The {@link JitsiConference} instance
+ * for which the event is being signaled.
+ * @returns {{
+ *     type: KICKED_OUT,
+ *     conference: JitsiConference
+ * }}
+ */
+export function kickedOut(conference: Object) {
+    return {
+        type: KICKED_OUT,
+        conference
     };
 }
 
@@ -299,11 +393,49 @@ export function createConference() {
  *     locked: boolean
  * }}
  */
-export function lockStateChanged(conference, locked) {
+export function lockStateChanged(conference: Object, locked: boolean) {
     return {
         type: LOCK_STATE_CHANGED,
         conference,
         locked
+    };
+}
+
+/**
+ * Updates the known state of start muted policies.
+ *
+ * @param {boolean} audioMuted - Whether or not members will join the conference
+ * as audio muted.
+ * @param {boolean} videoMuted - Whether or not members will join the conference
+ * as video muted.
+ * @returns {{
+ *     type: SET_START_MUTED_POLICY,
+ *     startAudioMutedPolicy: boolean,
+ *     startVideoMutedPolicy: boolean
+ * }}
+ */
+export function onStartMutedPolicyChanged(
+        audioMuted: boolean, videoMuted: boolean) {
+    return {
+        type: SET_START_MUTED_POLICY,
+        startAudioMutedPolicy: audioMuted,
+        startVideoMutedPolicy: videoMuted
+    };
+}
+
+/**
+ * Sets whether or not peer2peer is currently enabled.
+ *
+ * @param {boolean} p2p - Whether or not peer2peer is currently active.
+ * @returns {{
+ *     type: P2P_STATUS_CHANGED,
+ *     p2p: boolean
+ * }}
+ */
+export function p2pStatusChanged(p2p: boolean) {
+    return {
+        type: P2P_STATUS_CHANGED,
+        p2p
     };
 }
 
@@ -317,7 +449,7 @@ export function lockStateChanged(conference, locked) {
  *     audioOnly: boolean
  * }}
  */
-export function setAudioOnly(audioOnly) {
+export function setAudioOnly(audioOnly: boolean) {
     return {
         type: SET_AUDIO_ONLY,
         audioOnly
@@ -325,19 +457,38 @@ export function setAudioOnly(audioOnly) {
 }
 
 /**
- * Action to set whether or not the currently displayed large video is in
- * high-definition.
+ * Sets the flag for indicating if desktop sharing is enabled.
  *
- * @param {boolean} isLargeVideoHD - True if the large video is high-definition.
+ * @param {boolean} desktopSharingEnabled - True if desktop sharing is enabled.
  * @returns {{
- *     type: SET_LARGE_VIDEO_HD_STATUS,
- *     isLargeVideoHD: boolean
+ *     type: SET_DESKTOP_SHARING_ENABLED,
+ *     desktopSharingEnabled: boolean
  * }}
  */
-export function setLargeVideoHDStatus(isLargeVideoHD) {
+export function setDesktopSharingEnabled(desktopSharingEnabled: boolean) {
     return {
-        type: SET_LARGE_VIDEO_HD_STATUS,
-        isLargeVideoHD
+        type: SET_DESKTOP_SHARING_ENABLED,
+        desktopSharingEnabled
+    };
+}
+
+/**
+ * Enables or disables the Follow Me feature.
+ *
+ * @param {boolean} enabled - Whether or not Follow Me should be enabled.
+ * @returns {{
+ *     type: SET_FOLLOW_ME,
+ *     enabled: boolean
+ * }}
+ */
+export function setFollowMe(enabled: boolean) {
+    if (typeof APP !== 'undefined') {
+        APP.UI.emitEvent(UIEvents.FOLLOW_ME_ENABLED, enabled);
+    }
+
+    return {
+        type: SET_FOLLOW_ME,
+        enabled
     };
 }
 
@@ -381,8 +532,11 @@ export function setLastN(lastN: ?number) {
  * is to be joined or locked.
  * @returns {Function}
  */
-export function setPassword(conference, method, password) {
-    return (dispatch, getState) => {
+export function setPassword(
+        conference: Object,
+        method: Function,
+        password: string) {
+    return (dispatch: Dispatch<*>, getState: Function): ?Promise<void> => {
         switch (method) {
         case conference.join: {
             let state = getState()['features/base/conference'];
@@ -439,6 +593,22 @@ export function setPassword(conference, method, password) {
 }
 
 /**
+ * Sets the max frame height to receive from remote participant videos.
+ *
+ * @param {number} receiveVideoQuality - The max video resolution to receive.
+ * @returns {{
+ *     type: SET_RECEIVE_VIDEO_QUALITY,
+ *     receiveVideoQuality: number
+ * }}
+ */
+export function setReceiveVideoQuality(receiveVideoQuality: number) {
+    return {
+        type: SET_RECEIVE_VIDEO_QUALITY,
+        receiveVideoQuality
+    };
+}
+
+/**
  * Sets (the name of) the room of the conference to be joined.
  *
  * @param {(string|undefined)} room - The name of the room of the conference to
@@ -448,10 +618,34 @@ export function setPassword(conference, method, password) {
  *     room: string
  * }}
  */
-export function setRoom(room) {
+export function setRoom(room: ?string) {
     return {
         type: SET_ROOM,
         room
+    };
+}
+
+/**
+ * Sets whether or not members should join audio and/or video muted.
+ *
+ * @param {boolean} startAudioMuted - Whether or not members will join the
+ * conference as audio muted.
+ * @param {boolean} startVideoMuted - Whether or not members will join the
+ * conference as video muted.
+ * @returns {Function}
+ */
+export function setStartMutedPolicy(
+        startAudioMuted: boolean, startVideoMuted: boolean) {
+    return (dispatch: Dispatch<*>, getState: Function) => {
+        const { conference } = getState()['features/base/conference'];
+
+        conference.setStartMutedPolicy({
+            audio: startAudioMuted,
+            video: startVideoMuted
+        });
+
+        return dispatch(
+            onStartMutedPolicyChanged(startAudioMuted, startVideoMuted));
     };
 }
 

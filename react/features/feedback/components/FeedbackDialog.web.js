@@ -1,18 +1,23 @@
+/* global interfaceConfig */
+
+import { FieldTextAreaStateless } from '@atlaskit/field-text-area';
 import StarIcon from '@atlaskit/icon/glyph/star';
 import StarFilledIcon from '@atlaskit/icon/glyph/star-filled';
+import PropTypes from 'prop-types';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 
+import {
+    createFeedbackOpenEvent,
+    sendAnalytics
+} from '../../analytics';
 import { Dialog } from '../../base/dialog';
 import { translate } from '../../base/i18n';
-import JitsiMeetJS from '../../base/lib-jitsi-meet';
 
 import { cancelFeedback, submitFeedback } from '../actions';
 
-declare var interfaceConfig: Object;
-
-const scoreAnimationClass = interfaceConfig.ENABLE_FEEDBACK_ANIMATION
-    ? 'shake-rotate' : '';
+const scoreAnimationClass
+    = interfaceConfig.ENABLE_FEEDBACK_ANIMATION ? 'shake-rotate' : '';
 
 /**
  * The scores to display for selecting. The score is the index in the array and
@@ -46,13 +51,13 @@ class FeedbackDialog extends Component {
          * The cached feedback message, if any, that was set when closing a
          * previous instance of {@code FeedbackDialog}.
          */
-        _message: React.PropTypes.string,
+        _message: PropTypes.string,
 
         /**
          * The cached feedback score, if any, that was set when closing a
          * previous instance of {@code FeedbackDialog}.
          */
-        _score: React.PropTypes.number,
+        _score: PropTypes.number,
 
         /**
          * The JitsiConference that is being rated. The conference is passed in
@@ -61,22 +66,22 @@ class FeedbackDialog extends Component {
          *
          * @type {JitsiConference}
          */
-        conference: React.PropTypes.object,
+        conference: PropTypes.object,
 
         /**
          * Invoked to signal feedback submission or canceling.
          */
-        dispatch: React.PropTypes.func,
+        dispatch: PropTypes.func,
 
         /**
          * Callback invoked when {@code FeedbackDialog} is unmounted.
          */
-        onClose: React.PropTypes.func,
+        onClose: PropTypes.func,
 
         /**
          * Invoked to obtain translated strings.
          */
-        t: React.PropTypes.func
+        t: PropTypes.func
     };
 
     /**
@@ -144,7 +149,7 @@ class FeedbackDialog extends Component {
      * @inheritdoc
      */
     componentDidMount() {
-        JitsiMeetJS.analytics.sendEvent('feedback.open');
+        sendAnalytics(createFeedbackOpenEvent());
     }
 
     /**
@@ -215,12 +220,13 @@ class FeedbackDialog extends Component {
                         </div>
                     </div>
                     <div className = 'details'>
-                        <textarea
+                        <FieldTextAreaStateless
                             autoFocus = { true }
                             className = 'input-control'
                             id = 'feedbackTextArea'
+                            label = { t('feedback.detailsLabel') }
                             onChange = { this._onMessageChange }
-                            placeholder = { t('dialog.feedbackHelp') }
+                            shouldFitContainer = { true }
                             value = { message } />
                     </div>
                 </div>

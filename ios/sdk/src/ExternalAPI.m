@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#import "RCTBridgeModule.h"
+#import <React/RCTBridgeModule.h>
 
 #import "JitsiMeetView+Private.h"
 
 @interface ExternalAPI : NSObject<RCTBridgeModule>
-
 @end
 
 @implementation ExternalAPI
@@ -31,7 +30,7 @@ RCT_EXPORT_MODULE();
  *
  * @param name The name of the event.
  * @param data The details/specifics of the event to send determined
- * by/associated with the specified {@code name}.
+ * by/associated with the specified `name`.
  * @param scope
  */
 RCT_EXPORT_METHOD(sendEvent:(NSString *)name
@@ -52,26 +51,33 @@ RCT_EXPORT_METHOD(sendEvent:(NSString *)name
         return;
     }
 
-    if ([name isEqualToString:@"CONFERENCE_FAILED"]
-            && [delegate respondsToSelector:@selector(conferenceFailed:)]) {
-        [delegate conferenceFailed:data];
+    SEL sel = NSSelectorFromString([self methodNameFromEventName:name]);
 
-    } else if ([name isEqualToString:@"CONFERENCE_JOINED"]
-            && [delegate respondsToSelector:@selector(conferenceJoined:)]) {
-        [delegate conferenceJoined:data];
-
-    } else if ([name isEqualToString:@"CONFERENCE_LEFT"]
-            && [delegate respondsToSelector:@selector(conferenceLeft:)]) {
-        [delegate conferenceLeft:data];
-
-    } else if ([name isEqualToString:@"CONFERENCE_WILL_JOIN"]
-            && [delegate respondsToSelector:@selector(conferenceWillJoin:)]) {
-        [delegate conferenceWillJoin:data];
-
-    } else if ([name isEqualToString:@"CONFERENCE_WILL_LEAVE"]
-            && [delegate respondsToSelector:@selector(conferenceWillLeave:)]) {
-        [delegate conferenceWillLeave:data];
+    if (sel && [delegate respondsToSelector:sel]) {
+        [delegate performSelector:sel withObject:data];
     }
+}
+
+/**
+ * Converts a specific event name i.e. redux action type description to a
+ * method name.
+ *
+ * @param eventName The event name to convert to a method name.
+ * @return A method name constructed from the specified `eventName`.
+ */
+- (NSString *)methodNameFromEventName:(NSString *)eventName {
+   NSMutableString *methodName
+       = [NSMutableString stringWithCapacity:eventName.length];
+
+   for (NSString *c in [eventName componentsSeparatedByString:@"_"]) {
+       if (c.length) {
+           [methodName appendString:
+               methodName.length ? c.capitalizedString : c.lowercaseString];
+       }
+   }
+   [methodName appendString:@":"];
+
+   return methodName;
 }
 
 @end

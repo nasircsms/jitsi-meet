@@ -24,14 +24,27 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
 import android.widget.FrameLayout;
 
 import com.facebook.react.ReactInstanceManager;
 import com.facebook.react.ReactRootView;
+import com.facebook.react.bridge.NativeModule;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.common.LifecycleState;
+import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.rnimmersive.RNImmersiveModule;
 
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -44,6 +57,12 @@ public class JitsiMeetView extends FrameLayout {
     private static final int BACKGROUND_COLOR = 0xFF111111;
 
     /**
+     * The {@link Log} tag which identifies the source of the log messages of
+     * {@code JitsiMeetView}.
+     */
+    private final static String TAG = JitsiMeetView.class.getSimpleName();
+
+    /**
      * React Native bridge. The instance manager allows embedding applications
      * to create multiple root views off the same JavaScript bundle.
      */
@@ -51,6 +70,21 @@ public class JitsiMeetView extends FrameLayout {
 
     private static final Set<JitsiMeetView> views
         = Collections.newSetFromMap(new WeakHashMap<JitsiMeetView, Boolean>());
+
+    private static List<NativeModule> createNativeModules(
+            ReactApplicationContext reactContext) {
+        return Arrays.<NativeModule>asList(
+            new AndroidSettingsModule(reactContext),
+            new AppInfoModule(reactContext),
+            new AudioModeModule(reactContext),
+            new ExternalAPIModule(reactContext),
+            new InviteSearchModule(reactContext),
+            new PictureInPictureModule(reactContext),
+            new ProximityModule(reactContext),
+            new WiFiStatsModule(reactContext),
+            new org.jitsi.meet.sdk.net.NAT64AddrInfoModule(reactContext)
+        );
+    }
 
     public static JitsiMeetView findViewByExternalAPIScope(
             String externalAPIScope) {
@@ -65,31 +99,42 @@ public class JitsiMeetView extends FrameLayout {
         return null;
     }
 
+    // XXX Strictly internal use only (at the time of this writing)!
+    static ReactInstanceManager getReactInstanceManager() {
+        return reactInstanceManager;
+    }
+
     /**
      * Internal method to initialize the React Native instance manager. We
      * create a single instance in order to load the JavaScript bundle a single
-     * time. All <tt>ReactRootView</tt> instances will be tied to the one and
-     * only <tt>ReactInstanceManager</tt>.
+     * time. All {@code ReactRootView} instances will be tied to the one and
+     * only {@code ReactInstanceManager}.
      *
-     * @param application - <tt>Application</tt> instance which is running.
+     * @param application {@code Application} instance which is running.
      */
     private static void initReactInstanceManager(Application application) {
         reactInstanceManager
             = ReactInstanceManager.builder()
                 .setApplication(application)
                 .setBundleAssetName("index.android.bundle")
-                .setJSMainModuleName("index.android")
+                .setJSMainModulePath("index.android")
+                .addPackage(new com.calendarevents.CalendarEventsPackage())
                 .addPackage(new com.corbt.keepawake.KCKeepAwakePackage())
                 .addPackage(new com.facebook.react.shell.MainReactPackage())
+                .addPackage(new com.i18n.reactnativei18n.ReactNativeI18n())
                 .addPackage(new com.oblador.vectoricons.VectorIconsPackage())
                 .addPackage(new com.ocetnik.timer.BackgroundTimerPackage())
                 .addPackage(new com.oney.WebRTCModule.WebRTCModulePackage())
                 .addPackage(new com.RNFetchBlob.RNFetchBlobPackage())
                 .addPackage(new com.rnimmersive.RNImmersivePackage())
-                .addPackage(new org.jitsi.meet.sdk.audiomode.AudioModePackage())
-                .addPackage(
-                    new org.jitsi.meet.sdk.externalapi.ExternalAPIPackage())
-                .addPackage(new org.jitsi.meet.sdk.proximity.ProximityPackage())
+                .addPackage(new com.zmxv.RNSound.RNSoundPackage())
+                .addPackage(new ReactPackageAdapter() {
+                    @Override
+                    public List<NativeModule> createNativeModules(
+                            ReactApplicationContext reactContext) {
+                        return JitsiMeetView.createNativeModules(reactContext);
+                    }
+                })
                 .setUseDeveloperSupport(BuildConfig.DEBUG)
                 .setInitialLifecycleState(LifecycleState.RESUMED)
                 .build();
@@ -99,7 +144,7 @@ public class JitsiMeetView extends FrameLayout {
      * Loads a specific URL {@code String} in all existing
      * {@code JitsiMeetView}s.
      *
-     * @param urlString - The URL {@code String} to load in all existing
+     * @param urlString he URL {@code String} to load in all existing
      * {@code JitsiMeetView}s.
      * @return If the specified {@code urlString} was submitted for loading in
      * at least one {@code JitsiMeetView}, then {@code true}; otherwise,
@@ -121,28 +166,28 @@ public class JitsiMeetView extends FrameLayout {
 
     /**
      * Activity lifecycle method which should be called from
-     * <tt>Activity.onBackPressed</tt> so we can do the required internal
+     * {@code Activity.onBackPressed} so we can do the required internal
      * processing.
      *
-     * @return - true if the back-press was processed, false otherwise. In case
-     * false is returned the application should call the parent's
+     * @return {@code true} if the back-press was processed; {@code false},
+     * otherwise. If {@code false}, the application should call the parent's
      * implementation.
      */
     public static boolean onBackPressed() {
-        if (reactInstanceManager != null) {
+        if (reactInstanceManager == null) {
+            return false;
+        } else {
             reactInstanceManager.onBackPressed();
             return true;
-        } else {
-            return false;
         }
     }
 
     /**
      * Activity lifecycle method which should be called from
-     * <tt>Activity.onDestroy</tt> so we can do the required internal
+     * {@code Activity.onDestroy} so we can do the required internal
      * processing.
      *
-     * @param activity - <tt>Activity</tt> being destroyed.
+     * @param activity {@code Activity} being destroyed.
      */
     public static void onHostDestroy(Activity activity) {
         if (reactInstanceManager != null) {
@@ -152,9 +197,9 @@ public class JitsiMeetView extends FrameLayout {
 
     /**
      * Activity lifecycle method which should be called from
-     * <tt>Activity.onPause</tt> so we can do the required internal processing.
+     * {@code Activity.onPause} so we can do the required internal processing.
      *
-     * @param activity - <tt>Activity</tt> being paused.
+     * @param activity {@code Activity} being paused.
      */
     public static void onHostPause(Activity activity) {
         if (reactInstanceManager != null) {
@@ -164,24 +209,38 @@ public class JitsiMeetView extends FrameLayout {
 
     /**
      * Activity lifecycle method which should be called from
-     * <tt>Activity.onResume</tt> so we can do the required internal processing.
+     * {@code Activity.onResume} so we can do the required internal processing.
      *
-     * @param activity - <tt>Activity</tt> being resumed.
+     * @param activity {@code Activity} being resumed.
      */
     public static void onHostResume(Activity activity) {
+        onHostResume(activity, new DefaultHardwareBackBtnHandlerImpl(activity));
+    }
+
+    /**
+     * Activity lifecycle method which should be called from
+     * {@code Activity.onResume} so we can do the required internal processing.
+     *
+     * @param activity {@code Activity} being resumed.
+     * @param defaultBackButtonImpl a {@code DefaultHardwareBackBtnHandler} to
+     * handle invoking the back button if no {@code JitsiMeetView} handles it.
+     */
+    public static void onHostResume(
+            Activity activity,
+            DefaultHardwareBackBtnHandler defaultBackButtonImpl) {
         if (reactInstanceManager != null) {
-            reactInstanceManager.onHostResume(activity, null);
+            reactInstanceManager.onHostResume(activity, defaultBackButtonImpl);
         }
     }
 
     /**
      * Activity lifecycle method which should be called from
-     * <tt>Activity.onNewIntent</tt> so we can do the required internal
+     * {@code Activity.onNewIntent} so we can do the required internal
      * processing. Note that this is only needed if the activity's "launchMode"
      * was set to "singleTask". This is required for deep linking to work once
      * the application is already running.
      *
-     * @param intent - <tt>Intent</tt> instance which was received.
+     * @param intent {@code Intent} instance which was received.
      */
     public static void onNewIntent(Intent intent) {
         // XXX At least twice we received bug reports about malfunctioning
@@ -203,6 +262,83 @@ public class JitsiMeetView extends FrameLayout {
     }
 
     /**
+     * Activity lifecycle method which should be called from
+     * {@code Activity.onUserLeaveHint} so we can do the required internal
+     * processing.
+     *
+     * This is currently not mandatory.
+     */
+    public static void onUserLeaveHint() {
+        sendEvent("onUserLeaveHint", null);
+    }
+
+    /**
+     * Starts a query for users to invite to the conference.  Results will be
+     * returned through the {@link InviteSearchController.InviteSearchControllerDelegate#onReceiveResults(InviteSearchController, List, String)}
+     * method.
+     *
+     * @param query {@code String} to use for the query
+     */
+    public static void onInviteQuery(String query, String inviteSearchControllerScope) {
+        WritableNativeMap params = new WritableNativeMap();
+        params.putString("query", query);
+        params.putString("inviteScope", inviteSearchControllerScope);
+        sendEvent("performQueryAction", params);
+    }
+
+    /**
+     * Sends JavaScript event to submit invitations to the given item ids
+     *
+     * @param selectedItems a WritableArray of WritableNativeMaps representing selected items.
+     *                  Each map representing a selected item should match the data passed
+     *                  back in the return from a query.
+     */
+    public static void submitSelectedItems(WritableArray selectedItems, String inviteSearchControllerScope) {
+        WritableNativeMap params = new WritableNativeMap();
+        params.putArray("selectedItems", selectedItems);
+        params.putString("inviteScope", inviteSearchControllerScope);
+        sendEvent("performSubmitInviteAction", params);
+    }
+
+    /**
+     * Helper function to send an event to JavaScript.
+     *
+     * @param eventName {@code String} containing the event name.
+     * @param data {@code Object} optional ancillary data for the event.
+     */
+    private static void sendEvent(
+            String eventName,
+            @Nullable Object data) {
+        if (reactInstanceManager != null) {
+            ReactContext reactContext
+                = reactInstanceManager.getCurrentReactContext();
+            if (reactContext != null) {
+                reactContext
+                    .getJSModule(
+                        DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit(eventName, data);
+            }
+        }
+    }
+
+    /**
+     * Whether user invitation is enabled.
+     */
+    private boolean addPeopleEnabled;
+
+    /**
+     * The default base {@code URL} used to join a conference when a partial URL
+     * (e.g. a room name only) is specified to {@link #loadURLString(String)} or
+     * {@link #loadURLObject(Bundle)}.
+     */
+    private URL defaultURL;
+
+    /**
+     * Whether the ability to add users by phone number is enabled.
+     */
+    private boolean dialOutEnabled;
+
+    /**
      * The unique identifier of this {@code JitsiMeetView} within the process
      * for the purposes of {@link ExternalAPI}. The name scope was inspired by
      * postis which we use on Web for the similar purposes of the iframe-based
@@ -215,6 +351,13 @@ public class JitsiMeetView extends FrameLayout {
      * Jitsi Meet.
      */
     private JitsiMeetViewListener listener;
+
+    /**
+     * Whether Picture-in-Picture is enabled. If {@code null}, defaults to
+     * {@code true} iff the Android platform supports Picture-in-Picture
+     * natively.
+     */
+    private Boolean pictureInPictureEnabled;
 
     /**
      * React Native root view.
@@ -258,6 +401,19 @@ public class JitsiMeetView extends FrameLayout {
     }
 
     /**
+     * Gets the default base {@code URL} used to join a conference when a
+     * partial URL (e.g. a room name only) is specified to
+     * {@link #loadURLString(String)} or {@link #loadURLObject(Bundle)}. If not
+     * set or if set to {@code null}, the default built in JavaScript is used:
+     * {@link https://meet.jit.si}
+     *
+     * @return The default base {@code URL} or {@code null}.
+     */
+    public URL getDefaultURL() {
+        return defaultURL;
+    }
+
+    /**
      * Gets the {@link JitsiMeetViewListener} set on this {@code JitsiMeetView}.
      *
      * @return The {@code JitsiMeetViewListener} set on this
@@ -268,11 +424,27 @@ public class JitsiMeetView extends FrameLayout {
     }
 
     /**
+     * Gets whether Picture-in-Picture is enabled. Picture-in-Picture is
+     * natively supported on Android API >= 26 (Oreo), so it should not be
+     * enabled on older platform versions.
+     *
+     * @return If Picture-in-Picture is enabled, {@code true}; {@code false},
+     * otherwise.
+     */
+    public boolean getPictureInPictureEnabled() {
+        return
+            PictureInPictureModule.isPictureInPictureSupported()
+                && (pictureInPictureEnabled == null
+                    || pictureInPictureEnabled.booleanValue());
+    }
+
+    /**
      * Gets whether the Welcome page is enabled. If {@code true}, the Welcome
      * page is rendered when this {@code JitsiMeetView} is not at a URL
      * identifying a Jitsi Meet conference/room.
      *
-     * @return {@true} if the Welcome page is enabled; otherwise, {@code false}.
+     * @return {@code true} if the Welcome page is enabled; otherwise,
+     * {@code false}.
      */
     public boolean getWelcomePageEnabled() {
         return welcomePageEnabled;
@@ -283,7 +455,7 @@ public class JitsiMeetView extends FrameLayout {
      * the specified {@code URL} is {@code null} and the Welcome page is
      * enabled, the Welcome page is displayed instead.
      *
-     * @param url - The {@code URL} to load which may identify a conference to
+     * @param url The {@code URL} to load which may identify a conference to
      * join.
      */
     public void loadURL(@Nullable URL url) {
@@ -298,29 +470,57 @@ public class JitsiMeetView extends FrameLayout {
      * clients/consumers. If the specified URL is {@code null} and the Welcome
      * page is enabled, the Welcome page is displayed instead.
      *
-     * @param urlObject - The URL to load which may identify a conference to
-     * join.
+     * @param urlObject The URL to load which may identify a conference to join.
      */
     public void loadURLObject(@Nullable Bundle urlObject) {
         Bundle props = new Bundle();
 
+        // defaultURL
+        if (defaultURL != null) {
+            props.putString("defaultURL", defaultURL.toString());
+        }
+
         // externalAPIScope
         props.putString("externalAPIScope", externalAPIScope);
+
+        // pictureInPictureEnabled
+        props.putBoolean(
+            "pictureInPictureEnabled",
+            getPictureInPictureEnabled());
+
         // url
         if (urlObject != null) {
             props.putBundle("url", urlObject);
         }
+
         // welcomePageEnabled
         props.putBoolean("welcomePageEnabled", welcomePageEnabled);
 
-        // TODO: ReactRootView#setAppProperties is only available on React
-        // Native 0.45, so destroy the current root view and create a new one.
-        dispose();
+        props.putBoolean("addPeopleEnabled", addPeopleEnabled);
+        props.putBoolean("dialOutEnabled", dialOutEnabled);
 
-        reactRootView = new ReactRootView(getContext());
-        reactRootView.startReactApplication(reactInstanceManager, "App", props);
-        reactRootView.setBackgroundColor(BACKGROUND_COLOR);
-        addView(reactRootView);
+        // XXX The method loadURLObject: is supposed to be imperative i.e.
+        // a second invocation with one and the same URL is expected to join
+        // the respective conference again if the first invocation was followed
+        // by leaving the conference. However, React and, respectively,
+        // appProperties/initialProperties are declarative expressions i.e. one
+        // and the same URL will not trigger componentWillReceiveProps in the
+        // JavaScript source code. The workaround implemented bellow introduces
+        // imperativeness in React Component props by defining a unique value
+        // per loadURLObject: invocation.
+        props.putLong("timestamp", System.currentTimeMillis());
+
+        if (reactRootView == null) {
+            reactRootView = new ReactRootView(getContext());
+            reactRootView.startReactApplication(
+                reactInstanceManager,
+                "App",
+                props);
+            reactRootView.setBackgroundColor(BACKGROUND_COLOR);
+            addView(reactRootView);
+        } else {
+            reactRootView.setAppProperties(props);
+        }
     }
 
     /**
@@ -328,7 +528,7 @@ public class JitsiMeetView extends FrameLayout {
      * join. If the specified URL {@code String} is {@code null} and the Welcome
      * page is enabled, the Welcome page is displayed instead.
      *
-     * @param urlString - The URL {@code String} to load which may identify a
+     * @param urlString The URL {@code String} to load which may identify a
      * conference to join.
      */
     public void loadURLString(@Nullable String urlString) {
@@ -344,14 +544,100 @@ public class JitsiMeetView extends FrameLayout {
     }
 
     /**
+     * Called when the window containing this view gains or loses focus.
+     *
+     * @param hasFocus If the window of this view now has focus, {@code true};
+     * otherwise, {@code false}.
+     */
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+
+        // https://github.com/mockingbot/react-native-immersive#restore-immersive-state
+
+        // FIXME The singleton pattern employed by RNImmersiveModule is not
+        // advisable because a react-native mobule is consumable only after its
+        // BaseJavaModule#initialize() has completed and here we have no
+        // knowledge of whether the precondition is really met.
+        RNImmersiveModule immersive = RNImmersiveModule.getInstance();
+
+        if (hasFocus && immersive != null) {
+            try {
+                immersive.emitImmersiveStateChangeEvent();
+            } catch (RuntimeException re) {
+                // FIXME I don't know how to check myself whether
+                // BaseJavaModule#initialize() has been invoked and thus
+                // RNImmersiveModule is consumable. A safe workaround is to
+                // swallow the failure because the whole full-screen/immersive
+                // functionality is brittle anyway, akin to the icing on the
+                // cake, and has been working without onWindowFocusChanged for a
+                // very long time.
+                Log.e(
+                    TAG,
+                    "RNImmersiveModule#emitImmersiveStateChangeEvent() failed!",
+                    re);
+            }
+        }
+    }
+
+    /**
+     * Sets whether the ability to add users to the call is enabled.
+     * If this is enabled, an add user button will appear on the {@link JitsiMeetView}.
+     * If enabled, and the user taps the add user button,
+     * {@link JitsiMeetViewListener#launchNativeInvite(Map)} will be called.
+     *
+     * @param addPeopleEnabled {@code true} to enable the add people button; otherwise, {@code false}
+     */
+    public void setAddPeopleEnabled(boolean addPeopleEnabled) {
+        this.addPeopleEnabled = addPeopleEnabled;
+    }
+
+    /**
+     * Sets the default base {@code URL} used to join a conference when a
+     * partial URL (e.g. a room name only) is specified to
+     * {@link #loadURLString(String)} or {@link #loadURLObject(Bundle)}. Must be
+     * called before {@link #loadURL(URL)} for it to take effect.
+     *
+     * @param defaultURL The {@code URL} to be set as the default base URL.
+     * @see #getDefaultURL()
+     */
+    public void setDefaultURL(URL defaultURL) {
+        this.defaultURL = defaultURL;
+    }
+
+    /**
+     * Sets whether the ability to add phone numbers to the call is enabled.
+     * Must be enabled along with {@link #setAddPeopleEnabled(boolean)} to
+     * be effective.
+     *
+     * @param dialOutEnabled {@code true} to enable the ability to add
+     *                       phone numbers to the call; otherwise, {@code false}
+     */
+    public void setDialOutEnabled(boolean dialOutEnabled) {
+        this.dialOutEnabled = dialOutEnabled;
+    }
+
+    /**
      * Sets a specific {@link JitsiMeetViewListener} on this
      * {@code JitsiMeetView}.
      *
-     * @param listener - The {@code JitsiMeetViewListener} to set on this
+     * @param listener The {@code JitsiMeetViewListener} to set on this
      * {@code JitsiMeetView}.
      */
     public void setListener(JitsiMeetViewListener listener) {
         this.listener = listener;
+    }
+
+    /**
+     * Sets whether Picture-in-Picture is enabled. Because Picture-in-Picture is
+     * natively supported only since certain platform versions, specifying
+     * {@code true} will have no effect on unsupported platform versions.
+     *
+     * @param pictureInPictureEnabled To enable Picture-in-Picture,
+     * {@code true}; otherwise, {@code false}.
+     */
+    public void setPictureInPictureEnabled(boolean pictureInPictureEnabled) {
+        this.pictureInPictureEnabled = Boolean.valueOf(pictureInPictureEnabled);
     }
 
     /**

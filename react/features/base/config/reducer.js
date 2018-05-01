@@ -4,7 +4,11 @@ import _ from 'lodash';
 
 import { equals, ReducerRegistry, set } from '../redux';
 
-import { SET_CONFIG } from './actionTypes';
+import {
+    CONFIG_WILL_LOAD,
+    LOAD_CONFIG_ERROR,
+    SET_CONFIG
+} from './actionTypes';
 
 /**
  * The initial state of the feature base/config when executing in a
@@ -37,15 +41,8 @@ const INITIAL_RN_STATE = {
     // fastest to merely disable them.
     disableAudioLevels: true,
 
-    // FIXME Lib-jitsi-meet uses HTML script elements to asynchronously load
-    // certain pieces of JavaScript. Unfortunately, the technique doesn't work
-    // on React Native (because there are no HTML elements in the first place).
-    // Fortunately, these pieces of JavaScript currently involve third parties
-    // and we can temporarily disable them (until we implement an alternative to
-    // async script elements on React Native).
-    disableThirdPartyRequests: true,
-
     p2p: {
+        disableH264: false,
         preferH264: true
     }
 };
@@ -54,6 +51,16 @@ ReducerRegistry.register(
     'features/base/config',
     (state = _getInitialState(), action) => {
         switch (action.type) {
+        case CONFIG_WILL_LOAD:
+            return {
+                error: undefined
+            };
+
+        case LOAD_CONFIG_ERROR:
+            return {
+                error: action.error
+            };
+
         case SET_CONFIG:
             return _setConfig(state, action);
 
@@ -88,20 +95,21 @@ function _getInitialState() {
  * @returns {Object} The new state of the feature base/lib-jitsi-meet after the
  * reduction of the specified action.
  */
-function _setConfig(state, action) {
-    let { config } = action;
-
+function _setConfig(state, { config }) {
     // The mobile app bundles jitsi-meet and lib-jitsi-meet at build time and
     // does not download them at runtime from the deployment on which it will
     // join a conference. The downloading is planned for implementation in the
     // future (later rather than sooner) but is not implemented yet at the time
     // of this writing and, consequently, we must provide legacy support in the
     // meantime.
+
+    // eslint-disable-next-line no-param-reassign
     config = _translateLegacyConfig(config);
 
     const newState = _.merge(
         {},
         config,
+        { error: undefined },
 
         // The config of _getInitialState() is meant to override the config
         // downloaded from the Jitsi Meet deployment because the former contains
@@ -137,6 +145,8 @@ function _translateLegacyConfig(oldValue: Object) {
         newValue = set(newValue, 'p2p', {});
     }
 
+    /* eslint-disable indent */
+
     // Translate the old config properties into the new config.p2p properties.
     for (const [ oldKey, newKey ]
             of [
@@ -144,7 +154,10 @@ function _translateLegacyConfig(oldValue: Object) {
                 [ 'enableP2P', 'enabled' ],
                 [ 'p2pStunServers', 'stunServers' ]
             ]) {
-        if (oldKey in newValue) {
+
+    /* eslint-enable indent */
+
+        if (oldKey in newValue && !(newKey in newValue.p2p)) {
             const v = newValue[oldKey];
 
             // Do not modify oldValue.

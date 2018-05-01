@@ -1,14 +1,12 @@
-/* @flow */
+// @flow
 
 import type { Dispatch } from 'redux';
 
 import {
-    JitsiConferenceEvents,
     libInitError,
     WEBRTC_NOT_READY,
     WEBRTC_NOT_SUPPORTED
 } from '../lib-jitsi-meet';
-import UIEvents from '../../../../service/UI/UIEvents';
 
 declare var APP: Object;
 declare var config: Object;
@@ -19,7 +17,7 @@ export {
     connectionEstablished,
     connectionFailed,
     setLocationURL
-} from './actions.native.js';
+} from './actions.native';
 
 /**
  * Opens new connection.
@@ -32,74 +30,38 @@ export function connect() {
 
         // XXX Lib-jitsi-meet does not accept uppercase letters.
         const room = state['features/base/conference'].room.toLowerCase();
+        const { initPromise } = state['features/base/lib-jitsi-meet'];
 
         // XXX For web based version we use conference initialization logic
         // from the old app (at the moment of writing).
-        return APP.conference.init({ roomName: room }).then(() => {
-            if (APP.logCollector) {
-                // Start the LogCollector's periodic "store logs" task
-                APP.logCollector.start();
-                APP.logCollectorStarted = true;
+        return initPromise.then(() => APP.conference.init({
+            roomName: room
+        })).catch(error => {
+            APP.API.notifyConferenceLeft(APP.conference.roomName);
+            logger.error(error);
 
-                // Make an attempt to flush in case a lot of logs have been
-                // cached, before the collector was started.
-                APP.logCollector.flush();
-
-                // This event listener will flush the logs, before
-                // the statistics module (CallStats) is stopped.
-                //
-                // NOTE The LogCollector is not stopped, because this event can
-                // be triggered multiple times during single conference
-                // (whenever statistics module is stopped). That includes
-                // the case when Jicofo terminates the single person left in the
-                // room. It will then restart the media session when someone
-                // eventually join the room which will start the stats again.
-                APP.conference.addConferenceListener(
-                    JitsiConferenceEvents.BEFORE_STATISTICS_DISPOSED,
-                    () => {
-                        if (APP.logCollector) {
-                            APP.logCollector.flush();
-                        }
-                    }
-                );
+            // TODO The following are in fact Errors raised by
+            // JitsiMeetJS.init() which should be taken care of in
+            // features/base/lib-jitsi-meet but we are not there yet on the
+            // Web at the time of this writing.
+            switch (error.name) {
+            case WEBRTC_NOT_READY:
+            case WEBRTC_NOT_SUPPORTED:
+                dispatch(libInitError(error));
             }
-
-            APP.UI.initConference();
-
-            APP.UI.addListener(
-                UIEvents.LANG_CHANGED,
-                language => APP.translation.setLanguage(language));
-
-            APP.keyboardshortcut.init();
-
-            if (config.requireDisplayName && !APP.settings.getDisplayName()) {
-                APP.UI.promptDisplayName();
-            }
-        })
-            .catch(error => {
-                APP.API.notifyConferenceLeft(APP.conference.roomName);
-                logger.error(error);
-
-                // TODO The following are in fact Errors raised by
-                // JitsiMeetJS.init() which should be taken care of in
-                // features/base/lib-jitsi-meet but we are not there yet on the
-                // Web at the time of this writing.
-                switch (error.name) {
-                case WEBRTC_NOT_READY:
-                case WEBRTC_NOT_SUPPORTED:
-                    dispatch(libInitError(error));
-                }
-            });
+        });
     };
 }
 
 /**
  * Closes connection.
  *
+ * @param {boolean} [requestFeedback] - Whether or not to attempt showing a
+ * request for call feedback.
  * @returns {Function}
  */
-export function disconnect() {
+export function disconnect(requestFeedback: boolean = false) {
     // XXX For web based version we use conference hanging up logic from the old
     // app.
-    return () => APP.conference.hangup();
+    return () => APP.conference.hangup(requestFeedback);
 }

@@ -5,19 +5,33 @@
     justify-content: flex-start;
 }
 
+.use-new-toolbox {
+    .filmstrip.reduce-height {
+        bottom: $newToolbarSizeWithPadding;
+    }
+
+    .filmstrip {
+        transition: bottom .3s;
+    }
+
+    .filmstrip__videos.hidden {
+        bottom: calc(-196px - #{$newToolbarSizeWithPadding});
+    }
+}
+
 .filmstrip {
     position: absolute;
     bottom: 0;
     right: 0;
     padding: 10px 5px;
     @extend %align-right;
+    z-index: $filmstripVideosZ;
 
     &__toolbar {
         @include flex();
         flex-direction: column-reverse;
         flex-wrap: nowrap;
         position: relative;
-        z-index: $zindex1; // Set z-index to make element visible.
         width: $filmstripToggleButtonWidth;
 
         button {
@@ -48,22 +62,25 @@
     &__videos {
         @extend %align-right;
         position:relative;
-        height:196px;
         padding: 0;
         /* The filmstrip should not be covered by the left toolbar. */
         bottom: 0;
         width:auto;
-        z-index: $filmstripVideosZ;
-        transition: bottom 2s;
         overflow: visible !important;
-        /*!!! Removes the gap between the local video container and the remote
-        videos. */
-        font-size: 0pt;
 
         &#remoteVideos {
             border: $thumbnailsBorder solid transparent;
             padding-left: $defaultToolbarSize + 5;
-       }
+            transition: bottom 2s;
+        }
+
+        /**
+         * The local video identifier.
+         */
+        &#filmstripLocalVideo {
+            align-self: flex-end;
+            display: block;
+        }
 
         &.hidden {
             bottom: -196px;
@@ -153,12 +170,20 @@
     &__videos-filmstripOnly {
         margin-top: auto;
         margin-bottom: auto;
+
+        .filmstrip__videos {
+            &#filmstripLocalVideo {
+                bottom: 0px;
+            }
+        }
     }
 
     .remote-videos-container {
         transition: opacity 1s;
+    }
 
-        &.hide-videos {
+    &.hide-videos {
+        .remote-videos-container {
             opacity: 0;
             pointer-events: none;
         }

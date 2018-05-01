@@ -8,6 +8,7 @@ import {
     SET_CAMERA_FACING_MODE,
     SET_VIDEO_AVAILABLE,
     SET_VIDEO_MUTED,
+    STORE_VIDEO_TRANSFORM,
     TOGGLE_CAMERA_FACING_MODE
 } from './actionTypes';
 import { CAMERA_FACING_MODE, VIDEO_MUTISM_AUTHORITY } from './constants';
@@ -18,9 +19,9 @@ import { CAMERA_FACING_MODE, VIDEO_MUTISM_AUTHORITY } from './constants';
  * @param {boolean} available - True if the local audio is to be marked as
  * available or false if the local audio is not available.
  * @returns {{
- *      type: SET_AUDIO_AVAILABLE,
- *      available: boolean
- *  }}
+ *     type: SET_AUDIO_AVAILABLE,
+ *     available: boolean
+ * }}
  */
 export function setAudioAvailable(available: boolean) {
     return {
@@ -34,14 +35,18 @@ export function setAudioAvailable(available: boolean) {
  *
  * @param {boolean} muted - True if the local audio is to be muted or false if
  * the local audio is to be unmuted.
+ * @param {boolean} ensureTrack - True if we want to ensure that a new track is
+ * created if missing.
  * @returns {{
  *     type: SET_AUDIO_MUTED,
+ *     ensureTrack: boolean,
  *     muted: boolean
  * }}
  */
-export function setAudioMuted(muted: boolean) {
+export function setAudioMuted(muted: boolean, ensureTrack: boolean = false) {
     return {
         type: SET_AUDIO_MUTED,
+        ensureTrack,
         muted
     };
 }
@@ -86,11 +91,14 @@ export function setVideoAvailable(available: boolean) {
  * the local video is to be unmuted.
  * @param {number} authority - The {@link VIDEO_MUTISM_AUTHORITY} which is
  * muting/unmuting the local video.
+ * @param {boolean} ensureTrack - True if we want to ensure that a new track is
+ * created if missing.
  * @returns {Function}
  */
 export function setVideoMuted(
         muted: boolean,
-        authority: number = VIDEO_MUTISM_AUTHORITY.USER) {
+        authority: number = VIDEO_MUTISM_AUTHORITY.USER,
+        ensureTrack: boolean = false) {
     return (dispatch: Dispatch<*>, getState: Function) => {
         const oldValue = getState()['features/base/media'].video.muted;
 
@@ -99,21 +107,29 @@ export function setVideoMuted(
 
         return dispatch({
             type: SET_VIDEO_MUTED,
+            ensureTrack,
             muted: newValue
         });
     };
 }
 
 /**
- * Toggles the mute state of the local audio track(s).
+ * Creates an action to store the last video {@link Transform} applied to a
+ * stream.
  *
- * @returns {Function}
+ * @param {string} streamId - The ID of the stream.
+ * @param {Object} transform - The {@code Transform} to store.
+ * @returns {{
+ *     type: STORE_VIDEO_TRANSFORM,
+ *     streamId: string,
+ *     transform: Object
+ * }}
  */
-export function toggleAudioMuted() {
-    return (dispatch: Dispatch<*>, getState: Function) => {
-        const muted = getState()['features/base/media'].audio.muted;
-
-        return dispatch(setAudioMuted(!muted));
+export function storeVideoTransform(streamId: string, transform: Object) {
+    return {
+        type: STORE_VIDEO_TRANSFORM,
+        streamId,
+        transform
     };
 }
 
@@ -131,20 +147,5 @@ export function toggleAudioMuted() {
 export function toggleCameraFacingMode() {
     return {
         type: TOGGLE_CAMERA_FACING_MODE
-    };
-}
-
-/**
- * Toggles the mute state of the local video track(s).
- *
- * @returns {Function}
- */
-export function toggleVideoMuted() {
-    return (dispatch: Dispatch<*>, getState: Function) => {
-        const muted = getState()['features/base/media'].video.muted;
-
-        // XXX The following directly invokes the action creator in order to
-        // silence Flow.
-        return setVideoMuted(!muted)(dispatch, getState);
     };
 }

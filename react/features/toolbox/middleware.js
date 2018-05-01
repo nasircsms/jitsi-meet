@@ -1,14 +1,14 @@
-/* @flow */
+// @flow
 
-import {
-    SET_AUDIO_AVAILABLE,
-    SET_AUDIO_MUTED,
-    SET_VIDEO_AVAILABLE,
-    SET_VIDEO_MUTED } from '../base/media';
 import { MiddlewareRegistry } from '../base/redux';
 
-import { setToolbarButton } from './actions';
-import { CLEAR_TOOLBOX_TIMEOUT, SET_TOOLBOX_TIMEOUT } from './actionTypes';
+import {
+    CLEAR_TOOLBOX_TIMEOUT,
+    SET_TOOLBOX_TIMEOUT,
+    SET_FULL_SCREEN
+} from './actionTypes';
+
+declare var APP: Object;
 
 /**
  * Middleware which intercepts Toolbox actions to handle changes to the
@@ -26,77 +26,62 @@ MiddlewareRegistry.register(store => next => action => {
         break;
     }
 
+    case SET_FULL_SCREEN:
+        return _setFullScreen(next, action);
+
     case SET_TOOLBOX_TIMEOUT: {
         const { timeoutID } = store.getState()['features/toolbox'];
         const { handler, timeoutMS } = action;
 
         clearTimeout(timeoutID);
-        const newTimeoutId = setTimeout(handler, timeoutMS);
+        action.timeoutID = setTimeout(handler, timeoutMS);
 
-        action.timeoutID = newTimeoutId;
         break;
     }
-
-    case SET_AUDIO_AVAILABLE:
-    case SET_AUDIO_MUTED: {
-        return _setAudioAvailableOrMuted(store, next, action);
-    }
-
-    case SET_VIDEO_AVAILABLE:
-    case SET_VIDEO_MUTED:
-        return _setVideoAvailableOrMuted(store, next, action);
     }
 
     return next(action);
 });
 
 /**
- * Adjusts the state of toolbar's microphone button.
+ * Makes an external request to enter or exit full screen mode.
  *
- * @param {Store} store - The Redux store instance.
- * @param {Function} next - The redux function to continue dispatching the
- * specified {@code action} in the specified {@code store}.
- * @param {Object} action - Either SET_AUDIO_AVAILABLE or SET_AUDIO_MUTED.
- *
- * @returns {*}
+ * @param {Dispatch} next - The redux dispatch function to dispatch the
+ * specified action to the specified store.
+ * @param {Action} action - The redux action SET_FULL_SCREEN which is being
+ * dispatched in the specified store.
+ * @private
+ * @returns {Object} The value returned by {@code next(action)}.
  */
-function _setAudioAvailableOrMuted({ dispatch, getState }, next, action) {
-    const result = next(action);
+function _setFullScreen(next, action) {
+    if (typeof APP === 'object') {
+        const { fullScreen } = action;
 
-    const { available, muted } = getState()['features/base/media'].audio;
-    const i18nKey = available ? 'mute' : 'micDisabled';
+        if (fullScreen) {
+            const documentElement = document.documentElement || {};
 
-    dispatch(setToolbarButton('microphone', {
-        enabled: available,
-        i18n: `[content]toolbar.${i18nKey}`,
-        toggled: available ? muted : true
-    }));
+            if (typeof documentElement.requestFullscreen === 'function') {
+                documentElement.requestFullscreen();
+            } else if (
+                typeof documentElement.msRequestFullscreen === 'function') {
+                documentElement.msRequestFullscreen();
+            } else if (
+                typeof documentElement.mozRequestFullScreen === 'function') {
+                documentElement.mozRequestFullScreen();
+            } else if (
+                typeof documentElement.webkitRequestFullscreen === 'function') {
+                documentElement.webkitRequestFullscreen();
+            }
+        } else if (typeof document.exitFullscreen === 'function') {
+            document.exitFullscreen();
+        } else if (typeof document.msExitFullscreen === 'function') {
+            document.msExitFullscreen();
+        } else if (typeof document.mozCancelFullScreen === 'function') {
+            document.mozCancelFullScreen();
+        } else if (typeof document.webkitExitFullscreen === 'function') {
+            document.webkitExitFullscreen();
+        }
+    }
 
-    return result;
-}
-
-/**
- * Adjusts the state of toolbar's camera button.
- *
- * @param {Store} store - The redux store.
- * @param {Function} next - The redux function to continue dispatching the
- * specified {@code action} in the specified {@code store}.
- * @param {Object} action - Either {@link SET_VIDEO_AVAILABLE} or
- * {@link SET_VIDEO_MUTED}.
- * @returns {Object} The new state that is the result of the reduction of the
- * specified {@code action}.
- */
-function _setVideoAvailableOrMuted({ dispatch, getState }, next, action) {
-    const result = next(action);
-
-    const { available, muted } = getState()['features/base/media'].video;
-    const i18nKey = available ? 'videomute' : 'cameraDisabled';
-
-    dispatch(setToolbarButton('camera', {
-        enabled: available,
-        i18n: `[content]toolbar.${i18nKey}`,
-        toggled: available ? muted : true
-    }));
-
-    return result;
+    return next(action);
 }

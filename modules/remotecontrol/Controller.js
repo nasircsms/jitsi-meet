@@ -2,21 +2,24 @@
 
 import { getLogger } from 'jitsi-meet-logger';
 
+import {
+    JitsiConferenceEvents
+} from '../../react/features/base/lib-jitsi-meet';
 import * as KeyCodes from '../keycode/keycode';
 import {
     EVENTS,
     PERMISSIONS_ACTIONS,
     REMOTE_CONTROL_MESSAGE_NAME
 } from '../../service/remotecontrol/Constants';
+import * as RemoteControlEvents
+    from '../../service/remotecontrol/RemoteControlEvents';
 import UIEvents from '../../service/UI/UIEvents';
 
 import RemoteControlParticipant from './RemoteControlParticipant';
 
 declare var $: Function;
 declare var APP: Object;
-declare var JitsiMeetJS: Object;
 
-const ConferenceEvents = JitsiMeetJS.events.conference;
 const logger = getLogger(__filename);
 
 /**
@@ -87,6 +90,15 @@ export default class Controller extends RemoteControlParticipant {
     }
 
     /**
+     * Returns the current active participant's id.
+     *
+     * @returns {string|null} - The id of the current active participant.
+     */
+    get activeParticipant(): string | null {
+        return this._requestedParticipant || this._controlledParticipant;
+    }
+
+    /**
      * Requests permissions from the remote control receiver side.
      *
      * @param {string} userId - The user id of the participant that will be
@@ -96,11 +108,14 @@ export default class Controller extends RemoteControlParticipant {
      * @returns {Promise<boolean>} Resolve values - true(accept), false(deny),
      * null(the participant has left).
      */
-    requestPermissions(userId: string, eventCaptureArea: Object) {
+    requestPermissions(
+            userId: string,
+            eventCaptureArea: Object
+    ): Promise<boolean | null> {
         if (!this._enabled) {
             return Promise.reject(new Error('Remote control is disabled!'));
         }
-
+        this.emit(RemoteControlEvents.ACTIVE_CHANGED, true);
         this._area = eventCaptureArea;// $("#largeVideoWrapper")
         logger.log(`Requsting remote control permissions from: ${userId}`);
 
@@ -111,10 +126,10 @@ export default class Controller extends RemoteControlParticipant {
             const clearRequest = () => {
                 this._requestedParticipant = null;
                 APP.conference.removeConferenceListener(
-                    ConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+                    JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
                     permissionsReplyListener);
                 APP.conference.removeConferenceListener(
-                    ConferenceEvents.USER_LEFT,
+                    JitsiConferenceEvents.USER_LEFT,
                     onUserLeft);
             };
 
@@ -125,33 +140,42 @@ export default class Controller extends RemoteControlParticipant {
                     result = this._handleReply(participant, event);
                 } catch (e) {
                     clearRequest();
+                    this.emit(RemoteControlEvents.ACTIVE_CHANGED, false);
                     reject(e);
                 }
                 if (result !== null) {
                     clearRequest();
+                    if (result === false) {
+                        this.emit(RemoteControlEvents.ACTIVE_CHANGED, false);
+                    }
                     resolve(result);
                 }
             };
             onUserLeft = id => {
                 if (id === this._requestedParticipant) {
                     clearRequest();
+                    this.emit(RemoteControlEvents.ACTIVE_CHANGED, false);
                     resolve(null);
                 }
             };
 
             APP.conference.addConferenceListener(
-                ConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+                JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
                 permissionsReplyListener);
-            APP.conference.addConferenceListener(ConferenceEvents.USER_LEFT,
+            APP.conference.addConferenceListener(
+                JitsiConferenceEvents.USER_LEFT,
                 onUserLeft);
             this._requestedParticipant = userId;
-            this.sendRemoteControlEndpointMessage(userId, {
-                type: EVENTS.permissions,
-                action: PERMISSIONS_ACTIONS.request
-            }, e => {
-                clearRequest();
-                reject(e);
-            });
+            this.sendRemoteControlEndpointMessage(
+                userId,
+                {
+                    type: EVENTS.permissions,
+                    action: PERMISSIONS_ACTIONS.request
+                },
+                e => {
+                    clearRequest();
+                    reject(e);
+                });
         });
     }
 
@@ -161,7 +185,7 @@ export default class Controller extends RemoteControlParticipant {
      * @param {JitsiParticipant} participant - The participant that has sent the
      * reply.
      * @param {RemoteControlEvent} event - The remote control event.
-     * @returns {void}
+     * @returns {boolean|null}
      */
     _handleReply(participant: Object, event: Object) {
         const userId = participant.getId();
@@ -224,9 +248,9 @@ export default class Controller extends RemoteControlParticipant {
         APP.UI.addListener(UIEvents.LARGE_VIDEO_ID_CHANGED,
             this._largeVideoChangedListener);
         APP.conference.addConferenceListener(
-            ConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+            JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
             this._stopListener);
-        APP.conference.addConferenceListener(ConferenceEvents.USER_LEFT,
+        APP.conference.addConferenceListener(JitsiConferenceEvents.USER_LEFT,
             this._userLeftListener);
         this.resume();
     }
@@ -239,52 +263,53 @@ export default class Controller extends RemoteControlParticipant {
      * @returns {void}
      */
     resume() {
-        if (!this._enabled || this._isCollectingEvents || !this._area) {
+        let area;
+
+        if (!this._enabled
+                || this._isCollectingEvents
+                || !(area = this._area)) {
             return;
         }
         logger.log('Resuming remote control controller.');
         this._isCollectingEvents = true;
         APP.keyboardshortcut.enable(false);
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.mousemove(event => {
-            // $FlowDisableNextLine: we are sure that this._area is not null.
-            const position = this._area.position();
+        area.mousemove(event => {
+            const area = this._area; // eslint-disable-line no-shadow
+
+            if (!area) {
+                return;
+            }
+
+            const position = area.position();
 
             this.sendRemoteControlEndpointMessage(this._controlledParticipant, {
                 type: EVENTS.mousemove,
-
-                // $FlowDisableNextLine: we are sure that this._area is not null
-                x: (event.pageX - position.left) / this._area.width(),
-
-                // $FlowDisableNextLine: we are sure that this._area is not null
-                y: (event.pageY - position.top) / this._area.height()
+                x: (event.pageX - position.left) / area.width(),
+                y: (event.pageY - position.top) / area.height()
             });
         });
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.mousedown(this._onMouseClickHandler.bind(this,
-            EVENTS.mousedown));
+        area.mousedown(this._onMouseClickHandler.bind(this, EVENTS.mousedown));
+        area.mouseup(this._onMouseClickHandler.bind(this, EVENTS.mouseup));
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.mouseup(this._onMouseClickHandler.bind(this,
-            EVENTS.mouseup));
-
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.dblclick(
+        area.dblclick(
             this._onMouseClickHandler.bind(this, EVENTS.mousedblclick));
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.contextmenu(() => false);
+        area.contextmenu(() => false);
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area[0].onmousewheel = event => {
+        area[0].onmousewheel = event => {
+            event.preventDefault();
+            event.stopPropagation();
             this.sendRemoteControlEndpointMessage(this._controlledParticipant, {
                 type: EVENTS.mousescroll,
                 x: event.deltaX,
                 y: event.deltaY
             });
+
+            return false;
         };
+
         $(window).keydown(this._onKeyPessHandler.bind(this,
             EVENTS.keydown));
         $(window).keyup(this._onKeyPessHandler.bind(this, EVENTS.keyup));
@@ -305,13 +330,14 @@ export default class Controller extends RemoteControlParticipant {
         APP.UI.removeListener(UIEvents.LARGE_VIDEO_ID_CHANGED,
             this._largeVideoChangedListener);
         APP.conference.removeConferenceListener(
-            ConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+            JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
             this._stopListener);
-        APP.conference.removeConferenceListener(ConferenceEvents.USER_LEFT,
+        APP.conference.removeConferenceListener(JitsiConferenceEvents.USER_LEFT,
             this._userLeftListener);
         this.pause();
         this._controlledParticipant = null;
         this._area = undefined;
+        this.emit(RemoteControlEvents.ACTIVE_CHANGED, false);
         APP.UI.messageHandler.notify(
             'dialog.remoteControlTitle',
             'dialog.remoteControlStopMessage'
@@ -353,26 +379,20 @@ export default class Controller extends RemoteControlParticipant {
         this._isCollectingEvents = false;
         APP.keyboardshortcut.enable(true);
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.off('mousemove');
+        const area = this._area;
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.off('mousedown');
+        if (area) {
+            area.off('contextmenu');
+            area.off('dblclick');
+            area.off('mousedown');
+            area.off('mousemove');
+            area.off('mouseup');
 
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.off('mouseup');
-
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.off('contextmenu');
-
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area.off('dblclick');
+            area[0].onmousewheel = undefined;
+        }
 
         $(window).off('keydown');
         $(window).off('keyup');
-
-        // $FlowDisableNextLine: we are sure that this._area is not null.
-        this._area[0].onmousewheel = undefined;
     }
 
     /**
