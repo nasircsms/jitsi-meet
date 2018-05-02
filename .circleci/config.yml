@@ -29,9 +29,9 @@ jobs:
             make
 
       - run:
-          name: Clean
+          name: Package
           command: |
-            rm -rf node_modules
+            make source-package
 
       - run:
           name: Install AWS cli
@@ -52,7 +52,7 @@ jobs:
 
             export PATH=~/.local/bin:$PATH
 
-            aws s3 cp . s3://src-jitsi.rocket.chat/ --recursive
+            aws s3 cp build/* s3://src-jitsi.rocket.chat/ --recursive
 
 workflows:
   version: 2
