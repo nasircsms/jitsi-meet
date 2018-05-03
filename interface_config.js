@@ -27,7 +27,7 @@ var interfaceConfig = {
     DISPLAY_WELCOME_PAGE_CONTENT: true,
     APP_NAME: "Rocket.Chat Jitsi Meet",
     NATIVE_APP_NAME: 'Jitsi Meet',
-    LANG_DETECTION: false,    // Allow i18n to detect the system language
+    LANG_DETECTION: true,    // Allow i18n to detect the system language
     INVITATION_POWERED_BY: false,
     /**
      * If we should show authentication block in profile

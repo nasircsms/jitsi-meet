@@ -19,7 +19,7 @@ var config = {
         domain: 'meet.jit.si',
 
         // XMPP MUC domain. FIXME: use XEP-0030 to discover it.
-        muc: 'conference.meet.jit.si', // FIXME: use XEP-0030
+        muc: 'conference.meet.jit.si',
 
         // When using authentication, domain for guest users.
         // anonymousdomain: 'guest.example.com',
@@ -34,7 +34,7 @@ var config = {
         // call_control: 'callcontrol.jitsi-meet.example.com',
 
         // Focus component domain. Defaults to focus.<domain>.
-        focus: 'focus.meet.jit.si', // defaults to 'focus.jitsi-meet.example.com'
+        focus: 'focus.meet.jit.si',
     },
 
     // BOSH URL. FIXME: use XEP-0156 to discover it.
