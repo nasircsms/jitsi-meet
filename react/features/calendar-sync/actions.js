@@ -1,27 +1,10 @@
 // @flow
 
 import {
+    REFRESH_CALENDAR,
     SET_CALENDAR_AUTHORIZATION,
-    SET_CALENDAR_EVENTS,
-    ADD_KNOWN_DOMAIN,
-    REFRESH_CALENDAR
+    SET_CALENDAR_EVENTS
 } from './actionTypes';
-
-/**
- * Sends an action to add a new known domain if not present yet.
- *
- * @param {string} knownDomain - The new domain.
- * @returns {{
- *     type: ADD_KNOWN_DOMAIN,
- *     knownDomain: string
- * }}
- */
-export function addKnownDomain(knownDomain: string) {
-    return {
-        type: ADD_KNOWN_DOMAIN,
-        knownDomain
-    };
-}
 
 /**
  * Sends an action to refresh the entry list (fetches new data).

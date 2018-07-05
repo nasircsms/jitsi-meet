@@ -3,7 +3,11 @@
 import _ from 'lodash';
 import type { Dispatch } from 'redux';
 
-import { conferenceLeft, conferenceWillLeave } from '../conference';
+import {
+    conferenceLeft,
+    conferenceWillLeave,
+    getCurrentConference
+} from '../conference';
 import JitsiMeetJS, { JitsiConnectionEvents } from '../lib-jitsi-meet';
 import { parseStandardURIString } from '../util';
 
@@ -14,6 +18,55 @@ import {
     CONNECTION_WILL_CONNECT,
     SET_LOCATION_URL
 } from './actionTypes';
+
+const logger = require('jitsi-meet-logger').getLogger(__filename);
+
+/**
+ * The error structure passed to the {@link connectionFailed} action.
+ *
+ * Note there was an intention to make the error resemble an Error instance (to
+ * the extent that jitsi-meet needs it).
+ */
+export type ConnectionFailedError = {
+
+    /**
+     * The invalid credentials that were used to authenticate and the
+     * authentication failed.
+     */
+    credentials?: {
+
+        /**
+         * The XMPP user's ID.
+         */
+        jid: string,
+
+        /**
+         * The XMPP user's password.
+         */
+        password: string
+    },
+
+    /**
+     * The details about the connection failed event.
+     */
+    details?: Object,
+
+    /**
+     * Error message.
+     */
+    message?: string,
+
+    /**
+     * One of {@link JitsiConnectionError} constants (defined in
+     * lib-jitsi-meet).
+     */
+    name: string,
+
+    /**
+     * Indicates whether this event is recoverable or not.
+     */
+    recoverable?: boolean
+};
 
 /**
  * Opens new connection.
@@ -51,7 +104,7 @@ export function connect(id: ?string, password: ?string) {
         });
 
         /**
-         * Dispatches CONNECTION_DISCONNECTED action when connection is
+         * Dispatches {@code CONNECTION_DISCONNECTED} action when connection is
          * disconnected.
          *
          * @param {string} message - Disconnect reason.
@@ -59,10 +112,7 @@ export function connect(id: ?string, password: ?string) {
          * @returns {void}
          */
         function _onConnectionDisconnected(message: string) {
-            connection.removeEventListener(
-                JitsiConnectionEvents.CONNECTION_DISCONNECTED,
-                _onConnectionDisconnected);
-
+            unsubscribe();
             dispatch(_connectionDisconnected(connection, message));
         }
 
@@ -73,8 +123,10 @@ export function connect(id: ?string, password: ?string) {
          * @returns {void}
          */
         function _onConnectionEstablished() {
-            unsubscribe();
-            dispatch(connectionEstablished(connection));
+            connection.removeEventListener(
+                JitsiConnectionEvents.CONNECTION_ESTABLISHED,
+                _onConnectionEstablished);
+            dispatch(connectionEstablished(connection, Date.now()));
         }
 
         /**
@@ -86,25 +138,37 @@ export function connect(id: ?string, password: ?string) {
          * used to authenticate and the authentication failed.
          * @param {string} [credentials.jid] - The XMPP user's ID.
          * @param {string} [credentials.password] - The XMPP user's password.
+         * @param {Object} details - Additional information about the error.
          * @private
          * @returns {void}
          */
-        function _onConnectionFailed(err, msg, credentials) {
+        function _onConnectionFailed( // eslint-disable-line max-params
+                err: string,
+                msg: string,
+                credentials: Object,
+                details: Object) {
             unsubscribe();
-            console.error('CONNECTION FAILED:', err, msg);
-            dispatch(connectionFailed(connection, err, msg, credentials));
+            dispatch(
+                connectionFailed(
+                    connection, {
+                        credentials,
+                        details,
+                        name: err,
+                        message: msg
+                    }
+                ));
         }
 
         /**
-         * Unsubscribes connection instance from CONNECTION_ESTABLISHED
-         * and CONNECTION_FAILED events.
+         * Unsubscribe the connection instance from
+         * {@code CONNECTION_DISCONNECTED} and {@code CONNECTION_FAILED} events.
          *
          * @returns {void}
          */
         function unsubscribe() {
             connection.removeEventListener(
-                JitsiConnectionEvents.CONNECTION_ESTABLISHED,
-                _onConnectionEstablished);
+                JitsiConnectionEvents.CONNECTION_DISCONNECTED,
+                _onConnectionDisconnected);
             connection.removeEventListener(
                 JitsiConnectionEvents.CONNECTION_FAILED,
                 _onConnectionFailed);
@@ -115,7 +179,8 @@ export function connect(id: ?string, password: ?string) {
 /**
  * Create an action for when the signaling connection has been lost.
  *
- * @param {JitsiConnection} connection - The JitsiConnection which disconnected.
+ * @param {JitsiConnection} connection - The {@code JitsiConnection} which
+ * disconnected.
  * @param {string} message - Error message.
  * @private
  * @returns {{
@@ -133,9 +198,62 @@ function _connectionDisconnected(connection: Object, message: string) {
 }
 
 /**
+ * Create an action for when the signaling connection has been established.
+ *
+ * @param {JitsiConnection} connection - The {@code JitsiConnection} which was
+ * established.
+ * @param {number} timeEstablished - The time at which the
+ * {@code JitsiConnection} which was established.
+ * @public
+ * @returns {{
+ *     type: CONNECTION_ESTABLISHED,
+ *     connection: JitsiConnection,
+ *     timeEstablished: number
+ * }}
+ */
+export function connectionEstablished(
+        connection: Object, timeEstablished: number) {
+    return {
+        type: CONNECTION_ESTABLISHED,
+        connection,
+        timeEstablished
+    };
+}
+
+/**
+ * Create an action for when the signaling connection could not be created.
+ *
+ * @param {JitsiConnection} connection - The {@code JitsiConnection} which
+ * failed.
+ * @param {ConnectionFailedError} error - Error.
+ * @public
+ * @returns {{
+ *     type: CONNECTION_FAILED,
+ *     connection: JitsiConnection,
+ *     error: ConnectionFailedError
+ * }}
+ */
+export function connectionFailed(
+        connection: Object,
+        error: ConnectionFailedError) {
+    const { credentials } = error;
+
+    if (credentials && !Object.keys(credentials).length) {
+        error.credentials = undefined;
+    }
+
+    return {
+        type: CONNECTION_FAILED,
+        connection,
+        error
+    };
+}
+
+/**
  * Create an action for when a connection will connect.
  *
- * @param {JitsiConnection} connection - The JitsiConnection which will connect.
+ * @param {JitsiConnection} connection - The {@code JitsiConnection} which will
+ * connect.
  * @private
  * @returns {{
  *     type: CONNECTION_WILL_CONNECT,
@@ -148,68 +266,6 @@ function _connectionWillConnect(connection) {
         connection
     };
 }
-
-/**
- * Create an action for when the signaling connection has been established.
- *
- * @param {JitsiConnection} connection - The JitsiConnection which was
- * established.
- * @public
- * @returns {{
- *     type: CONNECTION_ESTABLISHED,
- *     connection: JitsiConnection
- * }}
- */
-export function connectionEstablished(connection: Object) {
-    return {
-        type: CONNECTION_ESTABLISHED,
-        connection
-    };
-}
-
-/* eslint-disable max-params */
-
-/**
- * Create an action for when the signaling connection could not be created.
- *
- * @param {JitsiConnection} connection - The JitsiConnection which failed.
- * @param {string} error - Error.
- * @param {string} [message] - Error message.
- * @param {Object} [credentials] - The invalid credentials that failed
- * the authentication.
- * @param {Object} [details] - The details about the connection failed event.
- * @public
- * @returns {{
- *     type: CONNECTION_FAILED,
- *     connection: JitsiConnection,
- *     error: Object
- * }}
- */
-export function connectionFailed(
-        connection: Object,
-        error: string,
-        message: ?string,
-        credentials: ?Object,
-        details: ?Object) {
-    return {
-        type: CONNECTION_FAILED,
-        connection,
-
-        // Make the error resemble an Error instance (to the extent that
-        // jitsi-meet needs it).
-        error: {
-            credentials:
-                credentials && Object.keys(credentials).length
-                    ? credentials
-                    : undefined,
-            message,
-            name: error,
-            details
-        }
-    };
-}
-
-/* eslint-enable max-params */
 
 /**
  * Constructs options to be passed to the constructor of {@code JitsiConnection}
@@ -264,10 +320,9 @@ function _constructOptions(state) {
 export function disconnect() {
     return (dispatch: Dispatch<*>, getState: Function): Promise<void> => {
         const state = getState();
-        const { conference, joining } = state['features/base/conference'];
 
         // The conference we have already joined or are joining.
-        const conference_ = conference || joining;
+        const conference_ = getCurrentConference(state);
 
         // Promise which completes when the conference has been left and the
         // connection has been disconnected.
@@ -283,7 +338,11 @@ export function disconnect() {
 
             promise
                 = conference_.leave()
-                    .catch(() => {
+                    .catch(error => {
+                        logger.warn(
+                            'JitsiConference.leave() rejected with:',
+                            error);
+
                         // The library lib-jitsi-meet failed to make the
                         // JitsiConference leave. Which may be because
                         // JitsiConference thinks it has already left.

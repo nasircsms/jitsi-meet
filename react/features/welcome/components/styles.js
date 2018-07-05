@@ -1,14 +1,15 @@
-import {
-    BoxModel,
-    ColorPalette,
-    createStyleSheet
-} from '../../base/styles';
+// @flow
+
+import { BoxModel, ColorPalette, createStyleSheet } from '../../base/styles';
+
+export const PLACEHOLDER_TEXT_COLOR = 'rgba(255, 255, 255, 0.3)';
+
+export const SIDEBAR_AVATAR_SIZE = 100;
 
 const SIDEBAR_HEADER_HEIGHT = 150;
 
-export const PLACEHOLDER_TEXT_COLOR = 'rgba(255, 255, 255, 0.3)';
-export const SIDEBAR_AVATAR_SIZE = 100;
 export const SWITCH_THUMB_COLOR = ColorPalette.blueHighlight;
+
 export const SWITCH_UNDER_COLOR = 'rgba(0, 0, 0, 0.4)';
 
 /**
@@ -33,6 +34,7 @@ export default createStyleSheet({
      * View that contains the audio-video switch and the labels.
      */
     audioVideoSwitchContainer: {
+        alignItems: 'center',
         flexDirection: 'row'
     },
 
@@ -219,6 +221,13 @@ export default createStyleSheet({
     sideBarItemText: {
         color: ColorPalette.black,
         fontWeight: 'bold'
+    },
+
+    /**
+     * The container of the label of the audio-video switch.
+     */
+    switchLabel: {
+        paddingHorizontal: 3
     },
 
     /**

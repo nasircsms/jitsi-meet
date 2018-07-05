@@ -1,69 +1,88 @@
 // @flow
 
+import md5 from 'js-md5';
 import RNCalendarEvents from 'react-native-calendar-events';
 
 import { APP_WILL_MOUNT } from '../app';
-import { SET_ROOM } from '../base/conference';
+import { ADD_KNOWN_DOMAINS, addKnownDomains } from '../base/known-domains';
 import { MiddlewareRegistry } from '../base/redux';
 import { APP_LINK_SCHEME, parseURIString } from '../base/util';
 import { APP_STATE_CHANGED } from '../mobile/background';
 
-import {
-    addKnownDomain,
-    setCalendarAuthorization,
-    setCalendarEvents
-} from './actions';
+import { setCalendarAuthorization, setCalendarEvents } from './actions';
 import { REFRESH_CALENDAR } from './actionTypes';
 import { CALENDAR_ENABLED } from './constants';
 
 const logger = require('jitsi-meet-logger').getLogger(__filename);
 
+/**
+ * The number of days to fetch.
+ */
 const FETCH_END_DAYS = 10;
+
+/**
+ * The number of days to go back when fetching.
+ */
 const FETCH_START_DAYS = -1;
+
+/**
+ * The max number of events to fetch from the calendar.
+ */
 const MAX_LIST_LENGTH = 10;
 
 CALENDAR_ENABLED
     && MiddlewareRegistry.register(store => next => action => {
-        const result = next(action);
-
         switch (action.type) {
-        case APP_STATE_CHANGED:
-            _maybeClearAccessStatus(store, action);
-            break;
+        case ADD_KNOWN_DOMAINS: {
+            // XXX Fetch new calendar entries only when an actual domain has
+            // become known.
+            const { getState } = store;
+            const oldValue = getState()['features/base/known-domains'];
+            const result = next(action);
+            const newValue = getState()['features/base/known-domains'];
 
-        case APP_WILL_MOUNT:
-            _ensureDefaultServer(store);
-            _fetchCalendarEntries(store, false, false);
-            break;
+            oldValue === newValue || _fetchCalendarEntries(store, false, false);
 
-        case REFRESH_CALENDAR:
-            _fetchCalendarEntries(store, true, action.forcePermission);
-            break;
-
-        case SET_ROOM:
-            _parseAndAddKnownDomain(store);
-            break;
+            return result;
         }
 
-        return result;
-    });
+        case APP_STATE_CHANGED: {
+            const result = next(action);
 
-/**
- * Clears the calendar access status when the app comes back from the
- * background. This is needed as some users may never quit the app, but puts it
- * into the background and we need to try to request for a permission as often
- * as possible, but not annoyingly often.
- *
- * @param {Object} store - The redux store.
- * @param {Object} action - The Redux action.
- * @private
- * @returns {void}
- */
-function _maybeClearAccessStatus(store, { appState }) {
-    if (appState === 'background') {
-        store.dispatch(setCalendarAuthorization(undefined));
-    }
-}
+            _maybeClearAccessStatus(store, action);
+
+            return result;
+        }
+
+        case APP_WILL_MOUNT: {
+            // For legacy purposes, we've allowed the deserialization of
+            // knownDomains and now we're to translate it to base/known-domains.
+            const state = store.getState()['features/calendar-sync'];
+
+            if (state) {
+                const { knownDomains } = state;
+
+                Array.isArray(knownDomains)
+                    && knownDomains.length
+                    && store.dispatch(addKnownDomains(knownDomains));
+            }
+
+            _fetchCalendarEntries(store, false, false);
+
+            return next(action);
+        }
+
+        case REFRESH_CALENDAR: {
+            const result = next(action);
+
+            _fetchCalendarEntries(store, true, action.forcePermission);
+
+            return result;
+        }
+        }
+
+        return next(action);
+    });
 
 /**
  * Ensures calendar access if possible and resolves the promise if it's granted.
@@ -96,20 +115,6 @@ function _ensureCalendarAccess(promptForPermission, dispatch) {
 }
 
 /**
- * Ensures presence of the default server in the known domains list.
- *
- * @param {Object} store - The redux store.
- * @private
- * @returns {Promise}
- */
-function _ensureDefaultServer({ dispatch, getState }) {
-    const defaultURL
-        = parseURIString(getState()['features/app'].app._getDefaultURL());
-
-    dispatch(addKnownDomain(defaultURL.host));
-}
-
-/**
  * Reads the user's calendar and updates the stored entries if need be.
  *
  * @param {Object} store - The redux store.
@@ -121,12 +126,13 @@ function _ensureDefaultServer({ dispatch, getState }) {
  * @returns {void}
  */
 function _fetchCalendarEntries(
-        { dispatch, getState },
+        store,
         maybePromptForPermission,
         forcePermission) {
-    const state = getState()['features/calendar-sync'];
+    const { dispatch, getState } = store;
     const promptForPermission
-        = (maybePromptForPermission && !state.authorization)
+        = (maybePromptForPermission
+                && !getState()['features/calendar-sync'].authorization)
             || forcePermission;
 
     _ensureCalendarAccess(promptForPermission, dispatch)
@@ -142,20 +148,14 @@ function _fetchCalendarEntries(
                         startDate.getTime(),
                         endDate.getTime(),
                         [])
-                    .then(events =>
-                        _updateCalendarEntries(
-                            events,
-                            state.knownDomains,
-                            dispatch))
+                    .then(_updateCalendarEntries.bind(store))
                     .catch(error =>
                         logger.error('Error fetching calendar.', error));
             } else {
                 logger.warn('Calendar access not granted.');
             }
         })
-        .catch(reason => {
-            logger.error('Error accessing calendar.', reason);
-        });
+        .catch(reason => logger.error('Error accessing calendar.', reason));
 }
 
 /**
@@ -200,17 +200,19 @@ function _getURLFromEvent(event, knownDomains) {
 }
 
 /**
- * Retrieves the domain name of a room upon join and stores it in the known
- * domain list, if not present yet.
+ * Clears the calendar access status when the app comes back from the
+ * background. This is needed as some users may never quit the app, but puts it
+ * into the background and we need to try to request for a permission as often
+ * as possible, but not annoyingly often.
  *
  * @param {Object} store - The redux store.
+ * @param {Object} action - The Redux action.
  * @private
- * @returns {Promise}
+ * @returns {void}
  */
-function _parseAndAddKnownDomain({ dispatch, getState }) {
-    const { locationURL } = getState()['features/base/connection'];
-
-    dispatch(addKnownDomain(locationURL.host));
+function _maybeClearAccessStatus(store, { appState }) {
+    appState === 'background'
+        && store.dispatch(setCalendarAuthorization(undefined));
 }
 
 /**
@@ -252,32 +254,71 @@ function _parseCalendarEntry(event, knownDomains) {
 }
 
 /**
- * Updates the calendar entries in Redux when new list is received.
+ * Updates the calendar entries in redux when new list is received. The feature
+ * calendar-sync doesn't display all calendar events, it displays unique
+ * title, URL, and start time tuples i.e. it doesn't display subsequent
+ * occurrences of recurring events, and the repetitions of events coming from
+ * multiple calendars.
+ *
+ * XXX The function's {@code this} is the redux store.
  *
  * @param {Array<CalendarEntry>} events - The new event list.
- * @param {Array<string>} knownDomains - The known domain list.
- * @param {Function} dispatch - The Redux dispatch function.
  * @private
  * @returns {void}
  */
-function _updateCalendarEntries(events, knownDomains, dispatch) {
-    if (events && events.length) {
-        const eventList = [];
+function _updateCalendarEntries(events) {
+    if (!events || !events.length) {
+        return;
+    }
 
-        for (const event of events) {
-            const calendarEntry
-                = _parseCalendarEntry(event, knownDomains);
-            const now = Date.now();
+    // eslint-disable-next-line no-invalid-this
+    const { dispatch, getState } = this;
+    const knownDomains = getState()['features/base/known-domains'];
+    const now = Date.now();
+    const entryMap = new Map();
 
-            if (calendarEntry && calendarEntry.endDate > now) {
-                eventList.push(calendarEntry);
+    for (const event of events) {
+        const entry = _parseCalendarEntry(event, knownDomains);
+
+        if (entry && entry.endDate > now) {
+            // As was stated above, we don't display subsequent occurrences of
+            // recurring events, and the repetitions of events coming from
+            // multiple calendars.
+            const key = md5.hex(JSON.stringify([
+
+                // Obviously, we want to display different conference/meetings
+                // URLs. URLs are the very reason why we implemented the feature
+                // calendar-sync in the first place.
+                entry.url,
+
+                // We probably want to display one and the same URL to people if
+                // they have it under different titles in their Calendar.
+                // Because maybe they remember the title of the meeting, not the
+                // URL so they expect to see the title without realizing that
+                // they have the same URL already under a different title.
+                entry.title,
+
+                // XXX Eventually, given that the URL and the title are the
+                // same, what sets one event apart from another is the start
+                // time of the day (note the use of toTimeString() bellow)! The
+                // day itself is not important because we don't want multiple
+                // occurrences of a recurring event or repetitions of an even
+                // from multiple calendars.
+                new Date(entry.startDate).toTimeString()
+            ]));
+            const existingEntry = entryMap.get(key);
+
+            // We want only the earliest occurrence (which hasn't ended in the
+            // past, that is) of a recurring event.
+            if (!existingEntry || existingEntry.startDate > entry.startDate) {
+                entryMap.set(key, entry);
             }
         }
-
-        dispatch(
-            setCalendarEvents(
-                eventList
-                    .sort((a, b) => a.startDate - b.startDate)
-                    .slice(0, MAX_LIST_LENGTH)));
     }
+
+    dispatch(
+        setCalendarEvents(
+            Array.from(entryMap.values())
+                .sort((a, b) => a.startDate - b.startDate)
+                .slice(0, MAX_LIST_LENGTH)));
 }

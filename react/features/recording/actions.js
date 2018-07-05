@@ -1,66 +1,129 @@
+// @flow
+
 import {
-    HIDE_RECORDING_LABEL,
-    RECORDING_STATE_UPDATED,
-    SET_RECORDING_TYPE,
-    TOGGLE_RECORDING
+    hideNotification,
+    showErrorNotification,
+    showNotification
+} from '../notifications';
+
+import {
+    CLEAR_RECORDING_SESSIONS,
+    RECORDING_SESSION_UPDATED,
+    SET_PENDING_RECORDING_NOTIFICATION_UID
 } from './actionTypes';
 
 /**
- * Hides any displayed recording label, regardless of current recording state.
+ * Clears the data of every recording sessions.
  *
  * @returns {{
- *     type: HIDE_RECORDING_LABEL
+ *     type: CLEAR_RECORDING_SESSIONS
  * }}
  */
-export function hideRecordingLabel() {
+export function clearRecordingSessions() {
     return {
-        type: HIDE_RECORDING_LABEL
+        type: CLEAR_RECORDING_SESSIONS
     };
 }
 
 /**
- * Sets what type of recording service will be used.
+ * Signals that the pending recording notification should be removed from the
+ * screen.
  *
- * @param {string} recordingType - The type of recording service to be used.
- * Should be one of the enumerated types in {@link RECORDING_TYPES}.
- * @returns {{
- *     type: SET_RECORDING_TYPE,
- *     recordingType: string
- * }}
+ * @returns {Function}
  */
-export function setRecordingType(recordingType) {
-    return {
-        type: SET_RECORDING_TYPE,
-        recordingType
+export function hidePendingRecordingNotification() {
+    return (dispatch: Function, getState: Function) => {
+        const { pendingNotificationUid } = getState()['features/recording'];
+
+        if (pendingNotificationUid) {
+            dispatch(hideNotification(pendingNotificationUid));
+            dispatch(setPendingRecordingNotificationUid());
+        }
     };
 }
 
 /**
- * Start or stop recording.
+ * Sets UID of the the pending recording notification to use it when hinding
+ * the notification is necessary, or unsets it when
+ * undefined (or no param) is passed.
  *
+ * @param {?number} uid - The UID of the notification.
+ * redux.
  * @returns {{
- *     type: TOGGLE_RECORDING
+ *     type: SET_PENDING_RECORDING_NOTIFICATION_UID,
+ *     uid: number
  * }}
  */
-export function toggleRecording() {
+export function setPendingRecordingNotificationUid(uid: ?number) {
     return {
-        type: TOGGLE_RECORDING
+        type: SET_PENDING_RECORDING_NOTIFICATION_UID,
+        uid
     };
 }
 
 /**
- * Updates the redux state for the recording feature.
+ * Signals that the pending recording notification should be shown on the
+ * screen.
  *
- * @param {Object} recordingState - The new state to merge with the existing
- * state in redux.
+ * @returns {Function}
+ */
+export function showPendingRecordingNotification() {
+    return (dispatch: Function) => {
+        const showNotificationAction = showNotification({
+            descriptionKey: 'recording.pending',
+            isDismissAllowed: false,
+            titleKey: 'dialog.recording'
+        });
+
+        dispatch(showNotificationAction);
+
+        dispatch(setPendingRecordingNotificationUid(
+            showNotificationAction.uid));
+    };
+}
+
+/**
+ * Signals that the recording error notification should be shown.
+ *
+ * @param {Object} props - The Props needed to render the notification.
+ * @returns {showErrorNotification}
+ */
+export function showRecordingError(props: Object) {
+    return showErrorNotification(props);
+}
+
+/**
+ * Signals that the stopped recording notification should be shown on the
+ * screen for a given period.
+ *
+ * @returns {showNotification}
+ */
+export function showStoppedRecordingNotification() {
+    return showNotification({
+        descriptionKey: 'recording.off',
+        titleKey: 'dialog.recording'
+    }, 2500);
+}
+
+/**
+ * Updates the known state for a given recording session.
+ *
+ * @param {Object} session - The new state to merge with the existing state in
+ * redux.
  * @returns {{
- *     type: RECORDING_STATE_UPDATED,
- *     recordingState: Object
+ *     type: RECORDING_SESSION_UPDATED,
+ *     sessionData: Object
  * }}
  */
-export function updateRecordingState(recordingState = {}) {
+export function updateRecordingSessionData(session: Object) {
     return {
-        type: RECORDING_STATE_UPDATED,
-        recordingState
+        type: RECORDING_SESSION_UPDATED,
+        sessionData: {
+            error: session.getError(),
+            id: session.getID(),
+            liveStreamViewURL: session.getLiveStreamViewURL(),
+            mode: session.getMode(),
+            status: session.getStatus()
+        }
     };
 }

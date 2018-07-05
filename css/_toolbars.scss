@@ -19,17 +19,6 @@
     vertical-align: middle;
 }
 
-.use-new-toolbox {
-    .cxGWJB{
-        bottom: calc(#{$newToolbarSizeWithPadding});
-    }
-    .gXSEsl:nth-child(n+2) {
-        transform: translateX(0) translateY(100%) translateY(16px);
-        -ms-transform: translateX(0) translateY(100%) translateY(16px);
-        -webkit-transform: translateX(0) translateY(100%) translateY(16px);
-    }
-}
-
 /**
  * TODO: when the old filmstrip has been removed, remove the "new-" prefix.
  */
@@ -39,8 +28,12 @@
     box-sizing: border-box;
     display: flex;
     justify-content: space-between;
-    padding: 16px 8px;
+    left: 0;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 12px 8px;
     position: absolute;
+    right: 0;
     transition: bottom .3s ease-in;
     width: 100%;
     z-index: $toolbarZ;
@@ -91,7 +84,13 @@
     }
 
     i.disabled {
-        cursor: initial
+        cursor: initial;
+        color: #3b475c;
+    }
+
+    .disabled i {
+        cursor: initial;
+        color: #3b475c;
     }
 
     i.disabled:hover {
@@ -100,6 +99,7 @@
 
     .icon-hangup {
         color: $hangupColor;
+        font-size: $newToolbarHangupFontSize;
     }
 
     .overflow-menu {
@@ -120,6 +120,12 @@
             height: 22px;
             padding: 5px 12px;
 
+            div {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+            }
+
             &:hover {
                 background: #313D52;
             }
@@ -130,6 +136,21 @@
             &.unclickable:hover {
                 background: inherit;
             }
+            &.disabled {
+                cursor: initial;
+                color: #3b475c;
+            }
+        }
+
+        .beta-tag {
+            background: #B8C7E0;
+            border-radius: 2px;
+            color: $newToolbarBackgroundColor;
+            font-family: -apple-system, BlinkMacSystemFont, $baseFontFamily;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+            padding: 0 6px;
         }
 
         .overflow-menu-item-icon {
@@ -239,10 +260,14 @@
     z-index: $toolbarZ;
 
     i {
-        font-size: $alwaysOnTopToolbarFontSize;
-        height: $alwaysOnTopToolbarSize;
-        line-height: $alwaysOnTopToolbarSize;
-        width: $alwaysOnTopToolbarSize;
+        font-size: $newToolbarFontSize;
+        height: $newToolbarSize;
+        line-height: $newToolbarSize;
+        width: $newToolbarSize;
+    }
+
+    .icon-hangup {
+        font-size: $newToolbarHangupFontSize;
     }
 
     .disabled {

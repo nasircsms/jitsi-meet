@@ -2,6 +2,7 @@
 
 import _ from 'lodash';
 
+import { _CONFIG_STORE_PREFIX } from './constants';
 import parseURLParams from './parseURLParams';
 
 declare var $: Object;
@@ -19,13 +20,58 @@ const WHITELISTED_KEYS = [
     '_peerConnStatusOutOfLastNTimeout',
     '_peerConnStatusRtcMuteTimeout',
     'abTesting',
-    'alwaysVisibleToolbar',
     'autoRecord',
     'autoRecordToken',
     'avgRtpStatsN',
+    'callFlowsEnabled',
     'callStatsConfIDNamespace',
     'callStatsID',
     'callStatsSecret',
+
+    /**
+     * The display name of the CallKit call representing the conference/meeting
+     * associated with this config.js including while the call is ongoing in the
+     * UI presented by CallKit and in the system-wide call history. The property
+     * is meant for use cases in which the room name is not desirable as a
+     * display name for CallKit purposes and the desired display name is not
+     * provided in the form of a JWT callee. As the value is associated with a
+     * conference/meeting, the value makes sense not as a deployment-wide
+     * configuration, only as a runtime configuration override/overwrite
+     * provided by, for example, Jitsi Meet SDK for iOS.
+     *
+     * @type string
+     */
+    'callDisplayName',
+
+    /**
+     * The handle
+     * ({@link https://developer.apple.com/documentation/callkit/cxhandle}) of
+     * the CallKit call representing the conference/meeting associated with this
+     * config.js. The property is meant for use cases in which the room URL is
+     * not desirable as the handle for CallKit purposes. As the value is
+     * associated with a conference/meeting, the value makes sense not as a
+     * deployment-wide configuration, only as a runtime configuration
+     * override/overwrite provided by, for example, Jitsi Meet SDK for iOS.
+     *
+     * @type string
+     */
+    'callHandle',
+
+    /**
+     * The UUID of the CallKit call representing the conference/meeting
+     * associated with this config.js. The property is meant for use cases in
+     * which Jitsi Meet is to work with a CallKit call created outside of Jitsi
+     * Meet and to be adopted by Jitsi Meet such as, for example, an incoming
+     * and/or outgoing CallKit call created by Jitsi Meet SDK for iOS
+     * clients/consumers prior to giving control to Jitsi Meet. As the value is
+     * associated with a conference/meeting, the value makes sense not as a
+     * deployment-wide configuration, only as a runtime configuration
+     * override/overwrite provided by, for example, Jitsi Meet SDK for iOS.
+     *
+     * @type string
+     */
+    'callUUID',
+
     'channelLastN',
     'constraints',
     'debug',
@@ -43,8 +89,6 @@ const WHITELISTED_KEYS = [
     'disableAGC',
     'disableAP',
     'disableAudioLevels',
-    'disableDesktopSharing',
-    'disableDesktopSharing',
     'disableH264',
     'disableHPF',
     'disableNS',
@@ -53,16 +97,16 @@ const WHITELISTED_KEYS = [
     'disableSuspendVideo',
     'displayJids',
     'enableDisplayNameInStats',
+    'enableLayerSuspension',
     'enableLipSync',
     'enableLocalVideoFlip',
-    'enableRecording',
     'enableRemb',
     'enableStatsID',
     'enableTalkWhileMuted',
     'enableTcc',
-    'enableUserRolesBasedOnToken',
     'etherpad_base',
     'failICE',
+    'fileRecordingsEnabled',
     'firefox_fake_device',
     'forceJVB121Ratio',
     'gatherStats',
@@ -73,12 +117,12 @@ const WHITELISTED_KEYS = [
     'iAmSipGateway',
     'iceTransportPolicy',
     'ignoreStartMuted',
+    'liveStreamingEnabled',
     'minParticipants',
     'nick',
     'openBridgeChannel',
     'p2p',
     'preferH264',
-    'recordingType',
     'requireDisplayName',
     'resolution',
     'startAudioMuted',
@@ -235,6 +279,39 @@ function _getWhitelistedJSON(configName, configJSON) {
     }
 
     return _.pick(configJSON, WHITELISTED_KEYS);
+}
+
+/**
+ * Restores a Jitsi Meet config.js from {@code localStorage} if it was
+ * previously downloaded from a specific {@code baseURL} and stored with
+ * {@link storeConfig}.
+ *
+ * @param {string} baseURL - The base URL from which the config.js was
+ * previously downloaded and stored with {@code storeConfig}.
+ * @returns {?Object} The Jitsi Meet config.js which was previously downloaded
+ * from {@code baseURL} and stored with {@code storeConfig} if it was restored;
+ * otherwise, {@code undefined}.
+ */
+export function restoreConfig(baseURL: string): ?Object {
+    let storage;
+    const key = `${_CONFIG_STORE_PREFIX}/${baseURL}`;
+
+    try {
+        // XXX Even reading the property localStorage of window may throw an
+        // error (which is user agent-specific behavior).
+        storage = window.localStorage;
+
+        const config = storage.getItem(key);
+
+        if (config) {
+            return JSON.parse(config) || undefined;
+        }
+    } catch (e) {
+        // Somehow incorrect data ended up in the storage. Clean it up.
+        storage && storage.removeItem(key);
+    }
+
+    return undefined;
 }
 
 /* eslint-disable max-params */

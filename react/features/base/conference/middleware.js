@@ -1,13 +1,15 @@
 // @flow
 
+import { reloadNow } from '../../app';
 import {
     ACTION_PINNED,
     ACTION_UNPINNED,
     createAudioOnlyChangedEvent,
+    createConnectionEvent,
     createPinnedEvent,
     sendAnalytics
 } from '../../analytics';
-import { CONNECTION_ESTABLISHED } from '../connection';
+import { CONNECTION_ESTABLISHED, CONNECTION_FAILED } from '../connection';
 import { setVideoMuted, VIDEO_MUTISM_AUTHORITY } from '../media';
 import {
     getLocalParticipant,
@@ -20,12 +22,14 @@ import UIEvents from '../../../../service/UI/UIEvents';
 import { TRACK_ADDED, TRACK_REMOVED } from '../tracks';
 
 import {
+    conferenceFailed,
     conferenceLeft,
     createConference,
     setLastN,
     toggleAudioOnly
 } from './actions';
 import {
+    CONFERENCE_FAILED,
     CONFERENCE_JOINED,
     DATA_CHANNEL_OPENED,
     SET_AUDIO_ONLY,
@@ -33,9 +37,9 @@ import {
     SET_RECEIVE_VIDEO_QUALITY,
     SET_ROOM
 } from './actionTypes';
-import { JITSI_CONFERENCE_URL_KEY } from './constants';
 import {
     _addLocalTracksToConference,
+    forEachConference,
     _handleParticipantError,
     _removeLocalTracksFromConference
 } from './functions';
@@ -52,11 +56,17 @@ declare var APP: Object;
  */
 MiddlewareRegistry.register(store => next => action => {
     switch (action.type) {
-    case CONNECTION_ESTABLISHED:
-        return _connectionEstablished(store, next, action);
+    case CONFERENCE_FAILED:
+        return _conferenceFailed(store, next, action);
 
     case CONFERENCE_JOINED:
         return _conferenceJoined(store, next, action);
+
+    case CONNECTION_ESTABLISHED:
+        return _connectionEstablished(store, next, action);
+
+    case CONNECTION_FAILED:
+        return _connectionFailed(store, next, action);
 
     case DATA_CHANNEL_OPENED:
         return _syncReceiveVideoQuality(store, next, action);
@@ -85,26 +95,38 @@ MiddlewareRegistry.register(store => next => action => {
 });
 
 /**
- * Notifies the feature base/conference that the action CONNECTION_ESTABLISHED
- * is being dispatched within a specific redux store.
+ * Makes sure to leave a failed conference in order to release any allocated
+ * resources like peer connections, emit participant left events, etc.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action CONNECTION_ESTABLISHED which is
- * being dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code CONFERENCE_FAILED} which is
+ * being dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
-function _connectionEstablished({ dispatch }, next, action) {
+function _conferenceFailed(store, next, action) {
     const result = next(action);
 
-    // FIXME: workaround for the web version. Currently the creation of the
-    // conference is handled by /conference.js
-    if (typeof APP === 'undefined') {
-        dispatch(createConference());
+    // FIXME: Workaround for the web version. Currently, the creation of the
+    // conference is handled by /conference.js and appropriate failure handlers
+    // are set there.
+    if (typeof APP !== 'undefined') {
+        return result;
     }
+
+    // XXX After next(action), it is clear whether the error is recoverable.
+    const { conference, error } = action;
+
+    !error.recoverable
+        && conference
+        && conference.leave().catch(reason => {
+            // Even though we don't care too much about the failure, it may be
+            // good to know that it happen, so log it (on the info level).
+            logger.info('JitsiConference.leave() rejected with:', reason);
+        });
 
     return result;
 }
@@ -113,12 +135,12 @@ function _connectionEstablished({ dispatch }, next, action) {
  * Does extra sync up on properties that may need to be updated after the
  * conference was joined.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action CONFERENCE_JOINED which is being
- * dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code CONFERENCE_JOINED} which is
+ * being dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -130,22 +152,156 @@ function _conferenceJoined({ dispatch, getState }, next, action) {
     // FIXME On Web the audio only mode for "start audio only" is toggled before
     // conference is added to the redux store ("on conference joined" action)
     // and the LastN value needs to be synchronized here.
-    audioOnly && (conference.getLastN() !== 0) && dispatch(setLastN(0));
+    audioOnly && conference.getLastN() !== 0 && dispatch(setLastN(0));
 
     return result;
 }
 
 /**
- * Notifies the feature base/conference that the action PIN_PARTICIPANT is being
- * dispatched within a specific redux store. Pins the specified remote
+ * Notifies the feature base/conference that the action
+ * {@code CONNECTION_ESTABLISHED} is being dispatched within a specific redux
+ * store.
+ *
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code CONNECTION_ESTABLISHED}
+ * which is being dispatched in the specified {@code store}.
+ * @private
+ * @returns {Object} The value returned by {@code next(action)}.
+ */
+function _connectionEstablished({ dispatch }, next, action) {
+    const result = next(action);
+
+    // FIXME: Workaround for the web version. Currently, the creation of the
+    // conference is handled by /conference.js.
+    typeof APP === 'undefined' && dispatch(createConference());
+
+    return result;
+}
+
+/**
+ * Notifies the feature base/conference that the action
+ * {@code CONNECTION_FAILED} is being dispatched within a specific redux
+ * store.
+ *
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code CONNECTION_FAILED} which is
+ * being dispatched in the specified {@code store}.
+ * @private
+ * @returns {Object} The value returned by {@code next(action)}.
+ */
+function _connectionFailed({ dispatch, getState }, next, action) {
+    // In the case of a split-brain error, reload early and prevent further
+    // handling of the action.
+    if (_isMaybeSplitBrainError(getState, action)) {
+        dispatch(reloadNow());
+
+        return;
+    }
+
+    const result = next(action);
+
+    // FIXME: Workaround for the web version. Currently, the creation of the
+    // conference is handled by /conference.js and appropriate failure handlers
+    // are set there.
+    if (typeof APP === 'undefined') {
+        const { connection } = action;
+        const { error } = action;
+
+        forEachConference(getState, conference => {
+            // It feels that it would make things easier if JitsiConference
+            // in lib-jitsi-meet would monitor it's connection and emit
+            // CONFERENCE_FAILED when it's dropped. It has more knowledge on
+            // whether it can recover or not. But because the reload screen
+            // and the retry logic is implemented in the app maybe it can be
+            // left this way for now.
+            if (conference.getConnection() === connection) {
+                // XXX Note that on mobile the error type passed to
+                // connectionFailed is always an object with .name property.
+                // This fact needs to be checked prior to enabling this logic on
+                // web.
+                const conferenceAction
+                    = conferenceFailed(conference, error.name);
+
+                // Copy the recoverable flag if set on the CONNECTION_FAILED
+                // action to not emit recoverable action caused by
+                // a non-recoverable one.
+                if (typeof error.recoverable !== 'undefined') {
+                    conferenceAction.error.recoverable = error.recoverable;
+                }
+
+                dispatch(conferenceAction);
+            }
+
+            return true;
+        });
+    }
+
+    return result;
+}
+
+/**
+ * Returns whether or not a CONNECTION_FAILED action is for a possible split
+ * brain error. A split brain error occurs when at least two users join a
+ * conference on different bridges. It is assumed the split brain scenario
+ * occurs very early on in the call.
+ *
+ * @param {Function} getState - The redux function for fetching the current
+ * state.
+ * @param {Action} action - The redux action {@code CONNECTION_FAILED} which is
+ * being dispatched in the specified {@code store}.
+ * @private
+ * @returns {boolean}
+ */
+function _isMaybeSplitBrainError(getState, action) {
+    const { error } = action;
+    const isShardChangedError = error
+        && error.message === 'item-not-found'
+        && error.details
+        && error.details.shard_changed;
+
+    if (isShardChangedError) {
+        const state = getState();
+        const { timeEstablished } = state['features/base/connection'];
+        const { _immediateReloadThreshold } = state['features/base/config'];
+
+        const timeSinceConnectionEstablished
+            = timeEstablished && Date.now() - timeEstablished;
+        const reloadThreshold = typeof _immediateReloadThreshold === 'number'
+            ? _immediateReloadThreshold : 1500;
+
+        const isWithinSplitBrainThreshold = !timeEstablished
+            || timeSinceConnectionEstablished <= reloadThreshold;
+
+        sendAnalytics(createConnectionEvent('failed', {
+            ...error,
+            connectionEstablished: timeEstablished,
+            splitBrain: isWithinSplitBrainThreshold,
+            timeSinceConnectionEstablished
+        }));
+
+        return isWithinSplitBrainThreshold;
+    }
+
+    return false;
+}
+
+/**
+ * Notifies the feature base/conference that the action {@code PIN_PARTICIPANT}
+ * is being dispatched within a specific redux store. Pins the specified remote
  * participant in the associated conference, ignores the local participant.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action PIN_PARTICIPANT which is being
- * dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code PIN_PARTICIPANT} which is
+ * being dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -187,7 +343,7 @@ function _pinParticipant({ getState }, next, action) {
     let pin;
 
     if (participantById) {
-        pin = !participantById.local && !participantById.isBot;
+        pin = !participantById.local && !participantById.isFakeParticipant;
     } else {
         const localParticipant = getLocalParticipant(participants);
 
@@ -208,12 +364,12 @@ function _pinParticipant({ getState }, next, action) {
  * Sets the audio-only flag for the current conference. When audio-only is set,
  * local video is muted and last N is set to 0 to avoid receiving remote video.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action SET_AUDIO_ONLY which is being
- * dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code SET_AUDIO_ONLY} which is
+ * being dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -240,11 +396,11 @@ function _setAudioOnly({ dispatch, getState }, next, action) {
         setVideoMuted(
             newValue,
             VIDEO_MUTISM_AUTHORITY.AUDIO_ONLY,
-            /* ensureTrack */ true));
+            action.ensureVideoTrack));
 
     if (typeof APP !== 'undefined') {
-        // TODO This should be a temporary solution that lasts only until
-        // video tracks and all ui is moved into react/redux on the web.
+        // TODO This should be a temporary solution that lasts only until video
+        // tracks and all ui is moved into react/redux on the web.
         APP.UI.emitEvent(UIEvents.TOGGLE_AUDIO_ONLY, newValue);
     }
 
@@ -254,12 +410,12 @@ function _setAudioOnly({ dispatch, getState }, next, action) {
 /**
  * Sets the last N (value) of the video channel in the conference.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action SET_LASTN which is being dispatched
- * in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code SET_LASTN} which is being
+ * dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -281,12 +437,12 @@ function _setLastN({ getState }, next, action) {
  * Sets the maximum receive video quality and will turn off audio only mode if
  * enabled.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action SET_RECEIVE_VIDEO_QUALITY which is
- * being dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code SET_RECEIVE_VIDEO_QUALITY}
+ * which is being dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -305,12 +461,12 @@ function _setReceiveVideoQuality({ dispatch, getState }, next, action) {
  * Notifies the feature {@code base/conference} that the redix action
  * {@link SET_ROOM} is being dispatched within a specific redux store.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
  * @param {Action} action - The redux action {@code SET_ROOM} which is being
- * dispatched in the specified store.
+ * dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -321,31 +477,20 @@ function _setRoom({ dispatch, getState }, next, action) {
     // base/conference's leaving should be the only conference-related sources
     // of truth.
     const state = getState();
-    const {
-        leaving,
-        ...stateFeaturesBaseConference
-    } = state['features/base/conference'];
+    const { leaving } = state['features/base/conference'];
     const { locationURL } = state['features/base/connection'];
     const dispatchConferenceLeft = new Set();
 
     // Figure out which of the JitsiConferences referenced by base/conference
     // have not dispatched or are not likely to dispatch CONFERENCE_FAILED and
     // CONFERENCE_LEFT.
-
-    // eslint-disable-next-line guard-for-in
-    for (const p in stateFeaturesBaseConference) {
-        const v = stateFeaturesBaseConference[p];
-
-        // Does the value of the base/conference's property look like a
-        // JitsiConference?
-        if (v && typeof v === 'object') {
-            const url = v[JITSI_CONFERENCE_URL_KEY];
-
-            if (url && v !== leaving && url !== locationURL) {
-                dispatchConferenceLeft.add(v);
-            }
+    forEachConference(state, (conference, url) => {
+        if (conference !== leaving && url && url !== locationURL) {
+            dispatchConferenceLeft.add(conference);
         }
-    }
+
+        return true; // All JitsiConference instances are to be examined.
+    });
 
     // Dispatch CONFERENCE_LEFT for the JitsiConferences referenced by
     // base/conference which have not dispatched or are not likely to dispatch
@@ -389,12 +534,12 @@ function _syncConferenceLocalTracksWithState({ getState }, action) {
 /**
  * Sets the maximum receive video quality.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action DATA_CHANNEL_STATUS_CHANGED which
- * is being dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code DATA_CHANNEL_STATUS_CHANGED}
+ * which is being dispatched in the specified {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */
@@ -407,15 +552,16 @@ function _syncReceiveVideoQuality({ getState }, next, action) {
 }
 
 /**
- * Notifies the feature base/conference that the action TRACK_ADDED
- * or TRACK_REMOVED is being dispatched within a specific redux store.
+ * Notifies the feature base/conference that the action {@code TRACK_ADDED}
+ * or {@code TRACK_REMOVED} is being dispatched within a specific redux store.
  *
- * @param {Store} store - The redux store in which the specified action is being
- * dispatched.
- * @param {Dispatch} next - The redux dispatch function to dispatch the
- * specified action to the specified store.
- * @param {Action} action - The redux action TRACK_ADDED or TRACK_REMOVED which
- * is being dispatched in the specified store.
+ * @param {Store} store - The redux store in which the specified {@code action}
+ * is being dispatched.
+ * @param {Dispatch} next - The redux {@code dispatch} function to dispatch the
+ * specified {@code action} to the specified {@code store}.
+ * @param {Action} action - The redux action {@code TRACK_ADDED} or
+ * {@code TRACK_REMOVED} which is being dispatched in the specified
+ * {@code store}.
  * @private
  * @returns {Object} The value returned by {@code next(action)}.
  */

@@ -1,44 +1,37 @@
-/**
- * The type of Redux action which signals for the label indicating current
- * recording state to stop displaying.
- *
- * {
- *     type: HIDE_RECORDING_LABEL
- * }
- * @public
- */
-export const HIDE_RECORDING_LABEL = Symbol('HIDE_RECORDING_LABEL');
+// @flow
 
 /**
- * The type of Redux action which updates the current known state of the
- * recording feature.
+ * The type of Redux action which clears all the data of every sessions.
  *
  * {
- *     type: RECORDING_STATE_UPDATED,
- *     recordingState: string
+ *     type: CLEAR_RECORDING_SESSIONS
  * }
  * @public
  */
-export const RECORDING_STATE_UPDATED = Symbol('RECORDING_STATE_UPDATED');
+export const CLEAR_RECORDING_SESSIONS = Symbol('CLEAR_RECORDING_SESSIONS');
 
 /**
- * The type of Redux action which updates the current known type of configured
- * recording. For example, type "jibri" is used for live streaming.
+ * The type of Redux action which updates the current known state of a recording
+ * session.
  *
  * {
- *     type: RECORDING_STATE_UPDATED,
- *     recordingType: string
+ *     type: RECORDING_SESSION_UPDATED,
+ *     sessionData: Object
  * }
  * @public
  */
-export const SET_RECORDING_TYPE = Symbol('SET_RECORDING_TYPE');
+export const RECORDING_SESSION_UPDATED = Symbol('RECORDING_SESSION_UPDATED');
 
 /**
- * The type of Redux action triggers the flow to start or stop recording.
+ * The type of Redux action which sets the pending recording notification UID to
+ * use it for when hiding the notification is necessary, or unsets it when
+ * undefined (or no param) is passed.
  *
  * {
- *     type: TOGGLE_RECORDING
+ *     type: SET_PENDING_RECORDING_NOTIFICATION_UID,
+ *     uid: ?number
  * }
  * @public
  */
-export const TOGGLE_RECORDING = Symbol('TOGGLE_RECORDING');
+export const SET_PENDING_RECORDING_NOTIFICATION_UID
+    = Symbol('SET_PENDING_RECORDING_NOTIFICATION_UID');

@@ -7,7 +7,8 @@ import { toState } from '../redux';
 import {
     AVATAR_ID_COMMAND,
     AVATAR_URL_COMMAND,
-    EMAIL_COMMAND
+    EMAIL_COMMAND,
+    JITSI_CONFERENCE_URL_KEY
 } from './constants';
 
 /**
@@ -38,6 +39,45 @@ export function _addLocalTracksToConference(
     }
 
     return Promise.all(promises);
+}
+
+/**
+ * Evaluates a specific predicate for each {@link JitsiConference} known to the
+ * redux state features/base/conference while it returns {@code true}.
+ *
+ * @param {Function | Object} stateful - The redux store, state, or
+ * {@code getState} function.
+ * @param {Function} predicate - The predicate to evaluate for each
+ * {@code JitsiConference} know to the redux state features/base/conference
+ * while it returns {@code true}.
+ * @returns {boolean} If the specified {@code predicate} returned {@code true}
+ * for all {@code JitsiConference} instances known to the redux state
+ * features/base/conference.
+ */
+export function forEachConference(
+        stateful: Function | Object,
+        predicate: (Object, URL) => boolean) {
+    const state = toState(stateful)['features/base/conference'];
+
+    for (const v of Object.values(state)) {
+        // Does the value of the base/conference's property look like a
+        // JitsiConference?
+        if (v && typeof v === 'object') {
+            // $FlowFixMe
+            const url: URL = v[JITSI_CONFERENCE_URL_KEY];
+
+            // XXX The Web version of Jitsi Meet does not utilize
+            // JITSI_CONFERENCE_URL_KEY at the time of this writing. An
+            // alternative is necessary then to recognize JitsiConference
+            // instances and myUserId is as good as any other property.
+            if ((url || typeof v.myUserId === 'function')
+                    && !predicate(v, url)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -148,8 +188,17 @@ function _reportError(msg, err) {
  */
 export function sendLocalParticipant(
         stateful: Function | Object,
-        conference: { sendCommand: Function, setDisplayName: Function }) {
-    const { avatarID, avatarURL, email, name } = getLocalParticipant(stateful);
+        conference: {
+            sendCommand: Function,
+            setDisplayName: Function,
+            setLocalParticipantProperty: Function }) {
+    const {
+        avatarID,
+        avatarURL,
+        email,
+        features,
+        name
+    } = getLocalParticipant(stateful);
 
     avatarID && conference.sendCommand(AVATAR_ID_COMMAND, {
         value: avatarID
@@ -160,5 +209,10 @@ export function sendLocalParticipant(
     email && conference.sendCommand(EMAIL_COMMAND, {
         value: email
     });
+
+    if (features && features['screen-sharing'] === 'true') {
+        conference.setLocalParticipantProperty('features_screen-sharing', true);
+    }
+
     conference.setDisplayName(name);
 }

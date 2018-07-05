@@ -1,4 +1,5 @@
 import { ColorPalette } from '../../base/styles';
+import { FILMSTRIP_SIZE } from '../constants';
 
 /**
  * Size for the Avatar.
@@ -44,19 +45,22 @@ export default {
         ...filmstrip,
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        height: 90
+        height: FILMSTRIP_SIZE
     },
 
     /**
      * The style of the wide {@link Filmstrip} version which displays thumbnails
      * in a column on the short size of the screen.
+     *
+     * NOTE: width is calculated based on the children, but it should also align
+     * to {@code FILMSTRIP_SIZE}.
      */
     filmstripWide: {
         ...filmstrip,
         bottom: 0,
         flexDirection: 'column',
-        left: 0,
         position: 'absolute',
+        right: 0,
         top: 0
     },
 

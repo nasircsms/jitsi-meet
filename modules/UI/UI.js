@@ -12,20 +12,14 @@ import UIUtil from './util/UIUtil';
 import UIEvents from '../../service/UI/UIEvents';
 import EtherpadManager from './etherpad/Etherpad';
 import SharedVideoManager from './shared_video/SharedVideo';
-import Recording from './recording/Recording';
 
 import VideoLayout from './videolayout/VideoLayout';
 import Filmstrip from './videolayout/Filmstrip';
-import Profile from './side_pannels/profile/Profile';
 
-import {
-    openDeviceSelectionDialog
-} from '../../react/features/device-selection';
 import { updateDeviceList } from '../../react/features/base/devices';
 import { JitsiTrackErrors } from '../../react/features/base/lib-jitsi-meet';
 import {
     getLocalParticipant,
-    participantPresenceChanged,
     showParticipantJoinedNotification
 } from '../../react/features/base/participants';
 import { destroyLocalTracks } from '../../react/features/base/tracks';
@@ -35,9 +29,9 @@ import {
     setNotificationsEnabled,
     showWarningNotification
 } from '../../react/features/notifications';
-import { shouldShowOnlyDeviceSelection } from '../../react/features/settings';
 import {
     dockToolbox,
+    setToolboxEnabled,
     showToolbox
 } from '../../react/features/toolbox';
 
@@ -98,22 +92,6 @@ const UIListeners = new Map([
     ], [
         UIEvents.TOGGLE_CHAT,
         () => UI.toggleChat()
-    ], [
-        UIEvents.TOGGLE_SETTINGS,
-        () => {
-            // Opening of device selection is special-cased as it is a dialog
-            // opened through a button in settings and not directly displayed in
-            // settings itself. As it is not useful to only have a settings menu
-            // with a button to open a dialog, open the dialog directly instead.
-            if (shouldShowOnlyDeviceSelection()) {
-                APP.store.dispatch(openDeviceSelectionDialog());
-            } else {
-                UI.toggleSidePanel('settings_container');
-            }
-        }
-    ], [
-        UIEvents.TOGGLE_PROFILE,
-        () => UI.toggleSidePanel('profile_container')
     ], [
         UIEvents.TOGGLE_FILMSTRIP,
         () => UI.handleToggleFilmstrip()
@@ -217,20 +195,8 @@ UI.changeDisplayName = function(id, displayName) {
     VideoLayout.onDisplayNameChanged(id, displayName);
 
     if (APP.conference.isLocalId(id) || id === 'localVideoContainer') {
-        Profile.changeDisplayName(displayName);
         Chat.setChatConversationMode(Boolean(displayName));
     }
-};
-
-/**
- * Shows/hides the indication about local connection being interrupted.
- *
- * @param {boolean} isInterrupted <tt>true</tt> if local connection is
- * currently in the interrupted state or <tt>false</tt> if the connection
- * is fine.
- */
-UI.showLocalConnectionInterrupted = function(isInterrupted) {
-    VideoLayout.showLocalConnectionInterrupted(isInterrupted);
 };
 
 /**
@@ -269,7 +235,7 @@ UI.setLocalRaisedHandStatus
  */
 UI.initConference = function() {
     const { getState } = APP.store;
-    const { email, id, name } = getLocalParticipant(getState);
+    const { id, name } = getLocalParticipant(getState);
 
     // Update default button states before showing the toolbar
     // if local role changes buttons state will be again updated.
@@ -283,26 +249,11 @@ UI.initConference = function() {
         UI.changeDisplayName('localVideoContainer', displayName);
     }
 
-    // Make sure we configure our avatar id, before creating avatar for us
-    if (email) {
-        UI.setUserEmail(id, email);
-    }
-
     // FollowMe attempts to copy certain aspects of the moderator's UI into the
     // other participants' UI. Consequently, it needs (1) read and write access
     // to the UI (depending on the moderator role of the local participant) and
     // (2) APP.conference as means of communication between the participants.
     followMeHandler = new FollowMe(APP.conference, UI);
-};
-
-UI.mucJoined = function() {
-    VideoLayout.mucJoined();
-
-    // Update local video now that a conference is joined a user ID should be
-    // set.
-    UI.changeDisplayName(
-        'localVideoContainer',
-        APP.conference.getLocalDisplayName());
 };
 
 /** *
@@ -337,7 +288,12 @@ UI.start = function() {
     if (!interfaceConfig.filmStripOnly) {
         VideoLayout.initLargeVideo();
     }
-    VideoLayout.resizeVideoArea(true, true);
+
+    // Do not animate the video area on UI start (second argument passed into
+    // resizeVideoArea) because the animation is not visible anyway. Plus with
+    // the current dom layout, the quality label is part of the video layout and
+    // will be seen animating in.
+    VideoLayout.resizeVideoArea(true, false);
 
     sharedVideoManager = new SharedVideoManager(eventEmitter);
 
@@ -346,22 +302,29 @@ UI.start = function() {
         Filmstrip.setFilmstripOnly();
         APP.store.dispatch(setNotificationsEnabled(false));
     } else {
-        // Initialise the recording module.
-        config.enableRecording
-            && Recording.init(eventEmitter, config.recordingType);
+        // Initialize recording mode UI.
+        if (config.iAmRecorder) {
+            VideoLayout.enableDeviceAvailabilityIcons(
+                APP.conference.getMyUserId(), false);
+
+            // in case of iAmSipGateway keep local video visible
+            if (!config.iAmSipGateway) {
+                VideoLayout.setLocalVideoVisible(false);
+            }
+
+            APP.store.dispatch(setToolboxEnabled(false));
+            APP.store.dispatch(setNotificationsEnabled(false));
+            UI.messageHandler.enablePopups(false);
+        }
 
         // Initialize side panels
         SidePanels.init(eventEmitter);
-
-        // TODO: remove this class once the old toolbar has been removed. This
-        // class is set so that any CSS changes needed to adjust elements
-        // outside of the new toolbar can be scoped to just the app with the new
-        // toolbar enabled.
-        $('body').addClass('use-new-toolbox');
     }
 
-    interfaceConfig.VERTICAL_FILMSTRIP
-        && $('body').addClass('vertical-filmstrip');
+    const filmstripTypeClassname = interfaceConfig.VERTICAL_FILMSTRIP
+        ? 'vertical-filmstrip' : 'horizontal-filmstrip';
+
+    $('body').addClass(filmstripTypeClassname);
 
     document.title = interfaceConfig.APP_NAME;
 };
@@ -427,13 +390,6 @@ UI.addLocalStream = track => {
     }
 };
 
-
-/**
- * Show remote stream on UI.
- * @param {JitsiTrack} track stream to show
- */
-UI.addRemoteStream = track => VideoLayout.onRemoteStreamAdded(track);
-
 /**
  * Removed remote stream from UI.
  * @param {JitsiTrack} track stream to remove
@@ -471,38 +427,16 @@ UI.addUser = function(user) {
     const status = user.getStatus();
 
     if (status) {
-        // if user has initial status dispatch it
-        // and skip 'connected' notifications
-        APP.store.dispatch(participantPresenceChanged(id, status));
-
         // FIXME: move updateUserStatus in participantPresenceChanged action
         UI.updateUserStatus(user, status);
     } else {
         APP.store.dispatch(showParticipantJoinedNotification(displayName));
     }
 
-    // Add Peer's container
-    VideoLayout.addParticipantContainer(user);
-
-    // Configure avatar
-    UI.setUserEmail(id);
-
     // set initial display name
     if (displayName) {
         UI.changeDisplayName(id, displayName);
     }
-};
-
-/**
- * Remove user from UI.
- * @param {string} id   user id
- * @param {string} displayName user nickname
- */
-UI.removeUser = function(id, displayName) {
-    messageHandler.participantNotification(
-        displayName, 'notify.somebody', 'disconnected', 'notify.disconnected');
-
-    VideoLayout.removeParticipantContainer(id);
 };
 
 /**
@@ -520,13 +454,9 @@ UI.onPeerVideoTypeChanged
 UI.updateLocalRole = isModerator => {
     VideoLayout.showModeratorIndicator();
 
-    if (isModerator) {
-        if (!interfaceConfig.DISABLE_FOCUS_INDICATOR) {
-            messageHandler.participantNotification(
-                null, 'notify.me', 'connected', 'notify.moderator');
-        }
-
-        Recording.checkAutoRecord();
+    if (isModerator && !interfaceConfig.DISABLE_FOCUS_INDICATOR) {
+        messageHandler.participantNotification(
+            null, 'notify.me', 'connected', 'notify.moderator');
     }
 };
 
@@ -546,20 +476,13 @@ UI.updateUserRole = user => {
 
     const displayName = user.getDisplayName();
 
-    if (displayName) {
-        messageHandler.participantNotification(
-            displayName,
-            'notify.somebody',
-            'connected',
-            'notify.grantedTo',
-            { to: UIUtil.escapeHtml(displayName) });
-    } else {
-        messageHandler.participantNotification(
-            '',
-            'notify.somebody',
-            'connected',
-            'notify.grantedToUnknown');
-    }
+    messageHandler.participantNotification(
+        displayName,
+        'notify.somebody',
+        'connected',
+        'notify.grantedTo',
+        { to: displayName
+            ? UIUtil.escapeHtml(displayName) : '$t(notify.somebody)' });
 };
 
 /**
@@ -748,17 +671,6 @@ UI.showToolbar = timeout => APP.store.dispatch(showToolbox(timeout));
 UI.dockToolbar = dock => APP.store.dispatch(dockToolbox(dock));
 
 /**
- * Update user email.
- * @param {string} id user id
- * @param {string} email user email
- */
-UI.setUserEmail = function(id, email) {
-    if (APP.conference.isLocalId(id)) {
-        Profile.changeEmail(email);
-    }
-};
-
-/**
  * Updates the displayed avatar for participant.
  *
  * @param {string} id - User id whose avatar should be updated.
@@ -815,25 +727,8 @@ UI.notifyInitiallyMuted = function() {
         null);
 };
 
-/**
- * Mark user as dominant speaker.
- * @param {string} id user id
- */
-UI.markDominantSpeaker = function(id) {
-    VideoLayout.onDominantSpeakerChanged(id);
-};
-
 UI.handleLastNEndpoints = function(leavingIds, enteringIds) {
     VideoLayout.onLastNEndpointsChanged(leavingIds, enteringIds);
-};
-
-/**
- * Will handle notification about participant's connectivity status change.
- *
- * @param {string} id the id of remote participant(MUC jid)
- */
-UI.participantConnectionStatusChanged = function(id) {
-    VideoLayout.onParticipantConnectionStatusChanged(id);
 };
 
 /**
@@ -858,18 +753,6 @@ UI.hideStats = function() {
 };
 
 /**
- * Mark video as interrupted or not.
- * @param {boolean} interrupted if video is interrupted
- */
-UI.markVideoInterrupted = function(interrupted) {
-    if (interrupted) {
-        VideoLayout.onVideoInterrupted();
-    } else {
-        VideoLayout.onVideoRestored();
-    }
-};
-
-/**
  * Add chat message.
  * @param {string} from user id
  * @param {string} displayName user nickname
@@ -879,10 +762,6 @@ UI.markVideoInterrupted = function(interrupted) {
 // eslint-disable-next-line max-params
 UI.addMessage = function(from, displayName, message, stamp) {
     Chat.updateChatConversation(from, displayName, message, stamp);
-};
-
-UI.updateRecordingState = function(state) {
-    Recording.updateRecordingState(state);
 };
 
 UI.notifyTokenAuthFailed = function() {
@@ -907,25 +786,6 @@ UI.notifyFocusDisconnected = function(focus, retrySec) {
         { component: focus,
             ms: retrySec }
     );
-};
-
-/**
- * Updates auth info on the UI.
- * @param {boolean} isAuthEnabled if authentication is enabled
- * @param {string} [login] current login
- */
-UI.updateAuthInfo = function(isAuthEnabled, login) {
-    const showAuth = isAuthEnabled && UIUtil.isAuthenticationEnabled();
-    const loggedIn = Boolean(login);
-
-    Profile.showAuthenticationButtons(showAuth);
-
-    if (showAuth) {
-        Profile.setAuthenticatedIdentity(login);
-
-        Profile.showLoginButton(!loggedIn);
-        Profile.showLogoutButton(loggedIn);
-    }
 };
 
 /**
@@ -963,15 +823,6 @@ UI.getLargeVideoID = function() {
 UI.getLargeVideo = function() {
     return VideoLayout.getLargeVideo();
 };
-
-/**
- * Returns whether or not the passed in user id is currently pinned to the large
- * video.
- *
- * @param {string} userId - The id of the user to check is pinned or not.
- * @returns {boolean} True if the user is currently pinned to the large video.
- */
-UI.isPinned = userId => VideoLayout.getPinnedId() === userId;
 
 /**
  * Shows "Please go to chrome webstore to install the desktop sharing extension"

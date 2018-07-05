@@ -1,11 +1,8 @@
-/* @flow */
+// @flow
 
 import { toState } from '../base/redux';
 import { getDeepLinkingPage } from '../deep-linking';
-import {
-    PluginRequiredBrowser,
-    UnsupportedDesktopBrowser
-} from '../unsupported-browser';
+import { UnsupportedDesktopBrowser } from '../unsupported-browser';
 
 import {
     // eslint-disable-next-line camelcase
@@ -30,24 +27,15 @@ const _INTERCEPT_COMPONENT_RULES = [
     state => {
         const { webRTCReady } = state['features/base/lib-jitsi-meet'];
 
-        switch (typeof webRTCReady) {
-        case 'boolean':
-            if (webRTCReady === false) {
-                return Promise.resolve(UnsupportedDesktopBrowser);
-            }
-            break;
-
-        case 'undefined':
-            // If webRTCReady is not set, then we cannot base a decision on it.
-            break;
-
-        default:
-            return Promise.resolve(PluginRequiredBrowser);
+        if (webRTCReady === false) {
+            return Promise.resolve(UnsupportedDesktopBrowser);
         }
 
         return Promise.resolve();
     }
 ];
+
+export * from './functions.any';
 
 /**
  * Determines which route is to be rendered in order to depict a specific redux

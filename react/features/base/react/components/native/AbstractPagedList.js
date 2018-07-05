@@ -5,11 +5,14 @@ import { View } from 'react-native';
 
 import styles from './styles';
 
+/**
+ * The type of the React {@code Component} props of {@link AbstractPagedList}.
+ */
 type Props = {
 
     /**
-     * The index (starting from 0) of the page that should be rendered
-     * active as default.
+     * The zero-based index of the page that should be rendered (selected) by
+     * default.
      */
     defaultPage: number,
 
@@ -24,17 +27,26 @@ type Props = {
     dispatch: Function,
 
     /**
+     * Callback to execute on page change.
+     */
+    onSelectPage: ?Function,
+
+    /**
      * The pages of the PagedList component to be rendered.
-     * Note: page.component may be undefined and then they don't need to be
-     * rendered.
+     *
+     * Note: An element's {@code component} may be {@code undefined} and then it
+     * won't need to be rendered.
      */
     pages: Array<{
-        component: Object,
+        component: ?Object,
         icon: string | number,
         title: string
     }>
 };
 
+/**
+ * The type of the React {@code Component} state of {@link AbstractPagedList}.
+ */
 type State = {
 
     /**
@@ -48,21 +60,29 @@ type State = {
  */
 export default class AbstractPagedList extends Component<Props, State> {
     /**
-     * Constructor of the component.
+     * Initializes a new {@code AbstractPagedList} instance.
      *
      * @inheritdoc
      */
     constructor(props: Props) {
         super(props);
 
-        // props.defaultPage may point to a non existing page if some of the
-        // pages are disabled.
-        const maxPageIndex
-            = props.pages.filter(page => page.component).length - 1;
-
         this.state = {
-            pageIndex: Math.max(0, Math.min(maxPageIndex, props.defaultPage))
+            pageIndex: this._validatePageIndex(props.defaultPage)
         };
+
+        // Bind event handlers so they are only bound once per instance.
+        this._maybeRefreshSelectedPage
+            = this._maybeRefreshSelectedPage.bind(this);
+    }
+
+    /**
+     * Implements React's {@link Component#componentDidMount}.
+     *
+     * @inheritdoc
+     */
+    componentDidMount() {
+        this._maybeRefreshSelectedPage();
     }
 
     /**
@@ -71,8 +91,8 @@ export default class AbstractPagedList extends Component<Props, State> {
      * @inheritdoc
      */
     render() {
-        const { disabled, pages } = this.props;
-        const enabledPages = pages.filter(page => page.component);
+        const { disabled } = this.props;
+        const pages = this.props.pages.filter(({ component }) => component);
 
         return (
             <View
@@ -81,18 +101,43 @@ export default class AbstractPagedList extends Component<Props, State> {
                     disabled ? styles.pagedListContainerDisabled : null
                 ] }>
                 {
-                    enabledPages.length > 1
+                    pages.length > 1
                         ? this._renderPagedList(disabled)
-                        : enabledPages.length === 1
+                        : pages.length === 1
                             ? React.createElement(
-                                /* type */ enabledPages[0].component,
+
+                                // $FlowExpectedError
+                                /* type */ pages[0].component,
                                 /* props */ {
                                     disabled,
                                     style: styles.pagedList
-                                }) : null
+                                })
+                            : null
                 }
             </View>
         );
+    }
+
+    _maybeRefreshSelectedPage: () => void;
+
+    /**
+     * Components that this PagedList displays may have a refresh function to
+     * refresh its content when displayed (or based on custom logic). This
+     * function invokes this logic if it's present.
+     *
+     * @private
+     * @returns {void}
+     */
+    _maybeRefreshSelectedPage() {
+        const selectedPage = this.props.pages[this.state.pageIndex];
+        let component;
+
+        if (selectedPage && (component = selectedPage.component)) {
+            const { refresh } = component;
+
+            typeof refresh === 'function'
+                && refresh.call(component, this.props.dispatch);
+        }
     }
 
     _renderPagedList: boolean => React$Node;
@@ -102,23 +147,36 @@ export default class AbstractPagedList extends Component<Props, State> {
     /**
      * Sets the selected page.
      *
-     * @param {number} pageIndex - The index of the active page.
+     * @param {number} pageIndex - The index of the selected page.
      * @protected
      * @returns {void}
      */
     _selectPage(pageIndex: number) {
-        this.setState({
-            pageIndex
-        });
+        // eslint-disable-next-line no-param-reassign
+        pageIndex = this._validatePageIndex(pageIndex);
 
-        // The page's Component may have a refresh(dispatch) function which we
-        // invoke when the page is selected.
-        const selectedPage = this.props.pages[pageIndex];
+        const { onSelectPage } = this.props;
 
-        if (selectedPage && selectedPage.component) {
-            const { refresh } = selectedPage.component;
+        typeof onSelectPage === 'function' && onSelectPage(pageIndex);
 
-            typeof refresh === 'function' && refresh(this.props.dispatch);
-        }
+        this.setState({ pageIndex }, this._maybeRefreshSelectedPage);
+    }
+
+    _validatePageIndex: number => number;
+
+    /**
+     * Validates the requested page index and returns a safe value.
+     *
+     * @private
+     * @param {number} pageIndex - The requested page index.
+     * @returns {number}
+     */
+    _validatePageIndex(pageIndex) {
+        // pageIndex may point to a non-existing page if some of the pages are
+        // disabled (their component property is undefined).
+        const maxPageIndex
+            = this.props.pages.filter(({ component }) => component).length - 1;
+
+        return Math.max(0, Math.min(maxPageIndex, pageIndex));
     }
 }

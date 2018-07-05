@@ -62,15 +62,17 @@ end
 
 
 function wrap_async_run(event,handler)
-    local result;
+    -- Grab a local response so that we can send the http response when
+    -- the handler is done.
+    local response = event.response;
     local async_func = runner(function (event)
-        local wait, done = waiter();
-        result=handler(event);
-        done();
-        return result;
+          response.status_code = handler(event);
+          -- Send the response to the waiting http client.
+          response:send();
     end)
     async_func:run(event)
-    return result;
+    -- return true to keep the client http connection open.
+    return true;
 end
 
 --- Updates presence stanza, by adding identity node
@@ -131,7 +133,22 @@ function update_presence_identity(
         "Presence with identity inserted %s", tostring(stanza))
 end
 
+-- Utility function to check whether feature is present and enabled. Allow
+-- a feature if there are features present in the session(coming from
+-- the token) and the value of the feature is true.
+-- If features is not present in the token we skip feature detection and allow
+-- everything.
+function is_feature_allowed(session, feature)
+    if (session.jitsi_meet_context_features == nil
+        or session.jitsi_meet_context_features[feature] == "true") then
+        return true;
+    else
+        return false;
+    end
+end
+
 return {
+    is_feature_allowed = is_feature_allowed;
     get_room_from_jid = get_room_from_jid;
     wrap_async_run = wrap_async_run;
     room_jid_match_rewrite = room_jid_match_rewrite;

@@ -8,7 +8,6 @@ import { connect, disconnect } from '../../base/connection';
 import { DialogContainer } from '../../base/dialog';
 import { translate } from '../../base/i18n';
 import { CalleeInfoContainer } from '../../base/jwt';
-import { HideNotificationBarStyle } from '../../base/react';
 import { Filmstrip } from '../../filmstrip';
 import { LargeVideo } from '../../large-video';
 import { NotificationsContainer } from '../../notifications';
@@ -42,11 +41,6 @@ const FULL_SCREEN_EVENTS = [
  * The type of the React {@code Component} props of {@link Conference}.
  */
 type Props = {
-
-    /**
-     * Whether the toolbar should stay visible or be able to autohide.
-     */
-    _alwaysVisibleToolbar: boolean,
 
     /**
      * Whether the local participant is recording the conference.
@@ -105,13 +99,14 @@ class Conference extends Component<Props> {
         FULL_SCREEN_EVENTS.forEach(name =>
             document.addEventListener(name, this._onFullScreenChange));
 
-        const { _alwaysVisibleToolbar, dispatch, t } = this.props;
+        const { dispatch, t } = this.props;
 
         dispatch(connect());
+
         maybeShowSuboptimalExperienceNotification(dispatch, t);
 
-        dispatch(setToolboxAlwaysVisible(
-            _alwaysVisibleToolbar || interfaceConfig.filmStripOnly));
+        interfaceConfig.filmStripOnly
+            && dispatch(setToolboxAlwaysVisible(true));
     }
 
     /**
@@ -139,10 +134,13 @@ class Conference extends Component<Props> {
     render() {
         const {
             VIDEO_QUALITY_LABEL_DISABLED,
-            filmStripOnly
+
+            // XXX The character casing of the name filmStripOnly utilized by
+            // interfaceConfig is obsolete but legacy support is required.
+            filmStripOnly: filmstripOnly
         } = interfaceConfig;
         const hideVideoQualityLabel
-            = filmStripOnly
+            = filmstripOnly
                 || VIDEO_QUALITY_LABEL_DISABLED
                 || this.props._iAmRecorder;
 
@@ -153,25 +151,16 @@ class Conference extends Component<Props> {
                 <div id = 'videospace'>
                     <LargeVideo
                         hideVideoQualityLabel = { hideVideoQualityLabel } />
-                    <Filmstrip filmstripOnly = { filmStripOnly } />
+                    <Filmstrip filmstripOnly = { filmstripOnly } />
                 </div>
 
-                { !filmStripOnly && <Toolbox /> }
-                { !filmStripOnly && <SidePanel /> }
+                { filmstripOnly || <Toolbox /> }
+                { filmstripOnly || <SidePanel /> }
 
                 <DialogContainer />
                 <NotificationsContainer />
 
                 <CalleeInfoContainer />
-
-                {/*
-                  * Temasys automatically injects a notification bar, if
-                  * necessary, displayed at the top of the page notifying that
-                  * WebRTC is not installed or supported. We do not need/want
-                  * the notification bar in question because we have whole pages
-                  * dedicated to the respective scenarios.
-                  */}
-                <HideNotificationBarStyle />
             </div>
         );
     }
@@ -205,24 +194,13 @@ class Conference extends Component<Props> {
  * @param {Object} state - The Redux state.
  * @private
  * @returns {{
- *     _alwaysVisibleToolbar: boolean,
  *     _iAmRecorder: boolean
  * }}
  */
 function _mapStateToProps(state) {
-    const {
-        alwaysVisibleToolbar,
-        iAmRecorder
-    } = state['features/base/config'];
+    const { iAmRecorder } = state['features/base/config'];
 
     return {
-        /**
-         * Whether the toolbar should stay visible or be able to autohide.
-         *
-         * @private
-         */
-        _alwaysVisibleToolbar: alwaysVisibleToolbar,
-
         /**
          * Whether the local participant is recording the conference.
          *

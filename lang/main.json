@@ -35,17 +35,21 @@
         "raiseHand": "Raise or lower your hand",
         "pushToTalk": "Push to talk",
         "toggleScreensharing": "Switch between camera and screen sharing",
-        "toggleFilmstrip": "Show or hide the videos",
-        "toggleShortcuts": "Show or hide this help menu",
+        "toggleFilmstrip": "Show or hide video thumbnails",
+        "toggleShortcuts": "Show or hide keyboard shortcuts",
         "focusLocal": "Focus on your video",
-        "focusRemote": "Focus on another caller's video",
+        "focusRemote": "Focus on another person's video",
         "toggleChat": "Open or close the chat",
         "mute": "Mute or unmute your microphone",
-        "fullScreen": "Enter or exit full screen",
+        "fullScreen": "View or exit full screen",
         "videoMute": "Start or stop your camera",
         "showSpeakerStats": "Show speaker stats"
     },
     "welcomepage":{
+        "accessibilityLabel": {
+            "join": "Tap to join",
+            "roomname": "Enter room name"
+        },
         "appDescription": "Go ahead, video chat with the whole team. In fact, invite everyone you know. __app__ is a fully encrypted, 100% open source video conferencing solution that you can use all day, every day, for free — with no account needed.",
         "audioVideoSwitch": {
             "audio": "Voice",
@@ -72,8 +76,38 @@
         "rejoinKeyTitle": "Rejoin"
     },
     "toolbar": {
+        "accessibilityLabel": {
+            "audioOnly": "Toggle audio only",
+            "audioRoute": "Select the sound device",
+            "callQuality": "Manage call quality",
+            "chat": "Toggle chat window",
+            "document": "Toggle shared document",
+            "feedback": "Leave feedback",
+            "fullScreen": "Toggle full screen",
+            "hangup": "Leave the call",
+            "invite": "Invite people",
+            "lockRoom": "Toggle room lock",
+            "moreActions": "Toggle more actions menu",
+            "moreActionsMenu": "More actions menu",
+            "mute": "Toggle mute audio",
+            "pip": "Toggle Picture-in-Picture mode",
+            "profile": "Edit your profile",
+            "raiseHand": "Toggle raise hand",
+            "recording": "Toggle recording",
+            "Settings": "Toggle settings",
+            "sharedvideo": "Toggle Youtube video sharing",
+            "shareRoom": "Invite someone",
+            "shareYourScreen": "Toggle screenshare",
+            "shortcuts": "Toggle shortcuts",
+            "speakerStats": "Toggle speaker statistics",
+            "toggleCamera": "Toggle camera",
+            "videomute": "Toggle mute video"
+        },
         "addPeople": "Add people to your call",
         "audioonly": "Enable / Disable audio only mode (saves bandwidth)",
+        "audioOnlyOn": "Enable audio only mode (saves bandwidth)",
+        "audioOnlyOff": "Disable audio only mode",
+        "audioRoute": "Select the sound device",
         "callQuality": "Manage call quality",
         "enterFullScreen": "View full screen",
         "exitFullScreen": "Exit full screen",
@@ -87,8 +121,8 @@
         "etherpad": "Open / Close shared document",
         "documentOpen": "Open shared document",
         "documentClose": "Close shared document",
+        "shareRoom": "Share room",
         "sharedvideo": "Share a YouTube video",
-        "sharescreen": "Screen share",
         "stopSharedVideo": "Stop YouTube video",
         "fullscreen": "View / Exit full screen",
         "sip": "Call SIP number",
@@ -97,16 +131,19 @@
         "login": "Login",
         "logout": "Logout",
         "sharedVideoMutedPopup": "Your shared video has been muted so that you can talk to the other members.",
+        "toggleCamera": "Toggle camera",
         "micMutedPopup": "Your microphone has been muted so that you would fully enjoy your shared video.",
         "talkWhileMutedPopup": "Trying to speak? You are muted.",
         "unableToUnmutePopup": "You cannot un-mute while the shared video is on.",
         "cameraDisabled": "Camera is not available",
         "micDisabled": "Microphone is not available",
         "filmstrip": "Show / Hide videos",
+        "pip": "Enter Picture-in-Picture mode",
         "profile": "Edit your profile",
         "raiseHand": "Raise / Lower your hand",
         "shortcuts": "View shortcuts",
-        "speakerStats": "Speaker stats"
+        "speakerStats": "Speaker stats",
+        "invite": "Invite people"
     },
     "chat":{
         "nickname": {
@@ -126,11 +163,15 @@
         "selectMic": "Microphone",
         "selectAudioOutput": "Audio output",
         "followMe": "Everyone follows me",
+        "language": "Language",
+        "loggedIn": "Logged in as __name__",
         "noDevice": "None",
         "cameraAndMic": "Camera and microphone",
-        "moderator": "MODERATOR",
+        "moderator": "Moderator",
+        "more": "More",
         "password": "SET PASSWORD",
-        "audioVideo": "AUDIO AND VIDEO"
+        "audioVideo": "AUDIO AND VIDEO",
+        "devices": "Devices"
     },
     "profile": {
         "title": "Profile",
@@ -193,7 +234,6 @@
         "focus": "Conference focus",
         "focusFail": "__component__ not available - retry in __ms__ sec",
         "grantedTo": "Moderator rights granted to __to__!",
-        "grantedToUnknown": "Moderator rights granted to $t(notify.somebody)!",
         "muted": "You have started the conversation muted.",
         "mutedTitle": "You're muted!",
         "raisedHand": "Would like to speak.",
@@ -201,7 +241,11 @@
         "suboptimalExperienceDescription": "Eer... we are afraid your experience with __appName__ isn't going to be that great here. We are looking for ways to improve this but, until then, please try using one of the <a href='static/recommendedBrowsers.html' target='_blank'>fully supported browsers</a>."
     },
     "dialog": {
+        "accessibilityLabel": {
+            "liveStreaming": "Live Stream"
+        },
         "allow": "Allow",
+        "confirm": "Confirm",
         "kickMessage": "Ouch! You have been kicked out of the meet!",
         "popupErrorTitle": "Pop-up blocked",
         "popupError": "Your browser is blocking pop-up windows from this site. Please enable pop-ups in your browser's security settings and try again.",
@@ -225,6 +269,7 @@
         "rejoinNow": "Rejoin now",
         "maxUsersLimitReachedTitle": "Maximum members limit reached",
         "maxUsersLimitReached": "The limit for maximum number of members has been reached. The conference is full. Please contact the meeting owner or try again later!",
+        "lockRoom": "Lock room",
         "lockTitle": "Lock failed",
         "lockMessage": "Failed to lock the conference.",
         "warning": "Warning",
@@ -272,6 +317,7 @@
         "reservationError": "Reservation system error",
         "reservationErrorMsg": "Error code: __code__, message: __msg__",
         "password": "Enter password",
+        "unlockRoom": "Unlock room",
         "userPassword": "user password",
         "token": "token",
         "tokenAuthFailedTitle": "Authentication failed",
@@ -284,11 +330,11 @@
         "sorryFeedback": "We're sorry to hear that. Would you like to tell us more?",
         "liveStreaming": "Live Streaming",
         "streamKey": "Live stream key",
-        "startLiveStreaming": "Go live now",
+        "startLiveStreaming": "Start live stream",
         "startRecording": "Start recording",
         "stopStreamingWarning": "Are you sure you would like to stop the live streaming?",
         "stopRecordingWarning": "Are you sure you would like to stop the recording?",
-        "stopLiveStreaming": "Stop live streaming",
+        "stopLiveStreaming": "Stop live stream",
         "stopRecording": "Stop recording",
         "doNotShowMessageAgain": "Don't show this message again",
         "permissionDenied": "Permission Denied",
@@ -318,6 +364,10 @@
         "muteParticipantTitle": "Mute this member?",
         "muteParticipantBody": "You won't be able to unmute them, but they can unmute themselves at any time.",
         "muteParticipantButton": "Mute",
+        "liveStreamingDisabledTooltip": "Start live stream disabled.",
+        "liveStreamingDisabledForGuestTooltip": "Guests can't start live streaming.",
+        "recordingDisabledTooltip": "Start recording disabled.",
+        "recordingDisabledForGuestTooltip": "Guests can't start recordings.",
         "remoteControlTitle": "Remote desktop control",
         "remoteControlRequestMessage": "Will you allow __user__ to remotely control your desktop?",
         "remoteControlShareScreenWarning": "Note that if you press \"Allow\" you will share your screen!",
@@ -328,6 +378,8 @@
         "remoteControlStopMessage": "The remote control session ended!",
         "close": "Close",
         "shareYourScreen": "Share your screen",
+        "shareYourScreenDisabled": "Screen sharing disabled.",
+        "shareYourScreenDisabledForGuest": "Guests can't screen share.",
         "yourEntireScreen": "Your entire screen",
         "applicationWindow": "Application window"
     },
@@ -380,15 +432,19 @@
     },
     "recording":
     {
+        "beta": "BETA",
         "busy": "We're working on freeing recording resources. Please try again in a few minutes.",
         "busyTitle": "All recorders are currently busy",
         "buttonTooltip": "Start / Stop recording",
         "error": "Recording failed. Please try again.",
         "failedToStart": "Recording failed to start",
+        "live": "LIVE",
         "off": "Recording stopped",
         "on": "Recording",
-        "pending": "Recording waiting for a member to join...",
+        "pending": "Preparing to record the meeting...",
+        "rec": "REC",
         "serviceName": "Recording service",
+        "startRecordingBody": "Are you sure you would like to start recording?",
         "unavailable": "Oops! The __serviceName__ is currently unavailable. We're working on resolving the issue. Please try again later.",
         "unavailableTitle": "Recording unavailable"
     },
@@ -403,6 +459,7 @@
         "enterStreamKey": "Enter your YouTube live stream key here.",
         "error": "Live Streaming failed. Please try again.",
         "errorAPI": "An error occurred while accessing your YouTube broadcasts. Please try logging in again.",
+        "errorLiveStreamNotEnabled": "Live Streaming is not enabled on __email__. Please enable live streaming or log into an account with live streaming enabled.",
         "failedToStart": "Live Streaming failed to start",
         "off": "Live Streaming stopped",
         "on": "Live Streaming",
@@ -444,6 +501,7 @@
         "testAudio": "Play a test sound"
     },
     "videoStatus": {
+        "audioOnly": "AUD",
         "callQuality": "Call Quality",
         "hd": "HD",
         "hdTooltip": "Viewing high definition video",
@@ -472,6 +530,7 @@
         "countryNotSupported": "We do not support this destination yet.",
         "countryReminder": "Calling outside the US? Please make sure you start with the country code!",
         "disabled": "You can't invite people.",
+        "footerText": "Dialing out is disabled.",
         "invite": "Invite",
         "loading": "Searching for people and phone numbers",
         "loadingNumber": "Validating phone number",
@@ -508,6 +567,7 @@
         "veryGood": "Very Good"
     },
     "info": {
+        "accessibilityLabel": "Show info",
         "addPassword": "Add password",
         "cancelPassword": "Cancel password",
         "conferenceURL": "Link:",
@@ -529,7 +589,7 @@
         "numbers": "Dial-in Numbers",
         "password": "Password:",
         "title": "Share",
-        "tooltip": "Get access info about the meeting"
+        "tooltip": "Share link and dial-in info for this meeting"
     },
     "settingsView": {
         "alertOk": "OK",
@@ -549,8 +609,9 @@
         "next": "Upcoming",
         "nextMeeting": "next meeting",
         "now": "Now",
+        "ongoingMeeting": "ongoing meeting",
         "permissionButton": "Open settings",
-        "permissionMessage": "Calendar permission is required to list your meetings in the app."
+        "permissionMessage": "The Calendar permission is required to see your meetings in the app."
     },
     "recentList": {
         "today": "Today",
@@ -568,5 +629,19 @@
         "appNotInstalled": "You need the __app__ mobile app to join this meeting on your phone.",
         "downloadApp": "Download the app",
         "openApp": "Continue to the app"
+    },
+    "presenceStatus": {
+        "invited": "Invited",
+        "ringing": "Ringing",
+        "calling": "Calling",
+        "initializingCall": "Initializing Call",
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "connecting2": "Connecting*",
+        "disconnected": "Disconnected",
+        "busy": "Busy",
+        "rejected": "Rejected",
+        "ignored": "Ignored",
+        "expired": "Expired"
     }
 }

@@ -10,11 +10,14 @@ Jitsi Meet allows for very efficient collaboration. It allows users to stream th
 
 On the client side, no installation is necessary. You just point your browser to the URL of your deployment. This section is about installing the Jitsi Meet suite on your server and hosting your own conferencing service.
 
-Installing Jitsi Meet is quite a simple experience. For Debian-based systems, we recommend following the [quick-install](https://github.com/jitsi/jitsi-meet/blob/master/doc/quick-install.md) document, which uses the package system.
+Installing Jitsi Meet is quite a simple experience. For Debian-based systems, we recommend following the [quick-install](https://github.com/jitsi/jitsi-meet/blob/master/doc/quick-install.md) document, which uses the package system. You can also see a demonstration of the process in [this tutorial video](https://jitsi.org/tutorial).
 
 For other systems, or if you wish to install all components manually, see the [detailed manual installation instructions](https://github.com/jitsi/jitsi-meet/blob/master/doc/manual-install.md).
 
 ## Download
+
+| Latest stable release | [![release](https://img.shields.io/badge/release-latest-green.svg)](https://github.com/jitsi/jitsi-meet/releases/latest) |
+|---|---|
 
 You can download Debian/Ubuntu binaries:
 * [stable](https://download.jitsi.org/stable/) ([instructions](https://jitsi.org/downloads/ubuntu-debian-installations-instructions/))
@@ -30,11 +33,11 @@ You can get our mobile versions from here:
 
 ## Building the sources
 
-Node.js >= 6 is required.
+Node.js >= 8 and npm >= 6 are required.
 
 On Debian/Ubuntu systems, the required packages can be installed with:
 ```
-sudo apt-get install npm nodejs-legacy
+sudo apt-get install npm nodejs
 cd jitsi-meet
 npm install
 ```

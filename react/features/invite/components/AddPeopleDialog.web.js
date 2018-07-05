@@ -7,16 +7,13 @@ import React, { Component } from 'react';
 import { connect } from 'react-redux';
 
 import { createInviteDialogEvent, sendAnalytics } from '../../analytics';
-import { getInviteURL } from '../../base/connection';
 import { Dialog, hideDialog } from '../../base/dialog';
-import { translate } from '../../base/i18n';
+import { translate, translateToHTML } from '../../base/i18n';
+import { getLocalParticipant } from '../../base/participants';
 import { MultiSelectAutocomplete } from '../../base/react';
-import { inviteVideoRooms } from '../../videosipgw';
 
-import {
-    sendInvitesForItems,
-    getInviteResultsForQuery
-} from '../functions';
+import { invite } from '../actions';
+import { getInviteResultsForQuery, getInviteTypeCounts } from '../functions';
 
 const logger = require('jitsi-meet-logger').getLogger(__filename);
 
@@ -44,14 +41,10 @@ class AddPeopleDialog extends Component<*, *> {
         _dialOutAuthUrl: PropTypes.string,
 
         /**
-         * The URL pointing to the service allowing for people invite.
+         * Whether to show a footer text after the search results
+         * as a last element.
          */
-        _inviteServiceUrl: PropTypes.string,
-
-        /**
-         * The url of the conference to invite people to.
-         */
-        _inviteUrl: PropTypes.string,
+        _footerTextEnabled: PropTypes.bool,
 
         /**
          * The JWT token.
@@ -71,22 +64,17 @@ class AddPeopleDialog extends Component<*, *> {
         /**
          * Whether or not to show Add People functionality.
          */
-        enableAddPeople: PropTypes.bool,
+        addPeopleEnabled: PropTypes.bool,
 
         /**
          * Whether or not to show Dial Out functionality.
          */
-        enableDialOut: PropTypes.bool,
+        dialOutEnabled: PropTypes.bool,
 
         /**
-         * The function closing the dialog.
+         * The redux {@code dispatch} function.
          */
-        hideDialog: PropTypes.func,
-
-        /**
-         * Used to invite video rooms.
-         */
-        inviteVideoRooms: PropTypes.func,
+        dispatch: PropTypes.func,
 
         /**
          * Invoked to obtain translated strings.
@@ -187,21 +175,25 @@ class AddPeopleDialog extends Component<*, *> {
      * @returns {ReactElement}
      */
     render() {
-        const { enableAddPeople, enableDialOut, t } = this.props;
+        const { _footerTextEnabled,
+            addPeopleEnabled,
+            dialOutEnabled,
+            t } = this.props;
         let isMultiSelectDisabled = this.state.addToCallInProgress || false;
         let placeholder;
         let loadingMessage;
         let noMatches;
+        let footerText;
 
-        if (enableAddPeople && enableDialOut) {
+        if (addPeopleEnabled && dialOutEnabled) {
             loadingMessage = 'addPeople.loading';
             noMatches = 'addPeople.noResults';
             placeholder = 'addPeople.searchPeopleAndNumbers';
-        } else if (enableAddPeople) {
+        } else if (addPeopleEnabled) {
             loadingMessage = 'addPeople.loadingPeople';
             noMatches = 'addPeople.noResults';
             placeholder = 'addPeople.searchPeople';
-        } else if (enableDialOut) {
+        } else if (dialOutEnabled) {
             loadingMessage = 'addPeople.loadingNumber';
             noMatches = 'addPeople.noValidNumbers';
             placeholder = 'addPeople.searchNumbers';
@@ -209,6 +201,19 @@ class AddPeopleDialog extends Component<*, *> {
             isMultiSelectDisabled = true;
             noMatches = 'addPeople.noResults';
             placeholder = 'addPeople.disabled';
+        }
+
+        if (_footerTextEnabled) {
+            footerText = {
+                content: <div className = 'footer-text-wrap'>
+                    <div>
+                        <span className = 'footer-telephone-icon'>
+                            <i className = 'icon-telephone' />
+                        </span>
+                    </div>
+                    { translateToHTML(t, 'addPeople.footerText') }
+                </div>
+            };
         }
 
         return (
@@ -221,6 +226,7 @@ class AddPeopleDialog extends Component<*, *> {
                 <div className = 'add-people-form-wrap'>
                     { this._renderErrorMessage() }
                     <MultiSelectAutocomplete
+                        footer = { footerText }
                         isDisabled = { isMultiSelectDisabled }
                         loadingMessage = { t(loadingMessage) }
                         noMatchesFound = { t(noMatches) }
@@ -234,32 +240,6 @@ class AddPeopleDialog extends Component<*, *> {
                 </div>
             </Dialog>
         );
-    }
-
-    /**
-     * Helper for determining how many of each type of user is being invited.
-     * Used for logging and sending analytics related to invites.
-     *
-     * @param {Array} inviteItems - An array with the invite items, as created
-     * in {@link _parseQueryResults}.
-     * @private
-     * @returns {Object} An object with keys as user types and values as the
-     * number of invites for that type.
-     */
-    _getInviteTypeCounts(inviteItems = []) {
-        const inviteTypeCounts = {};
-
-        inviteItems.forEach(i => {
-            const type = i.item.type;
-
-            if (!inviteTypeCounts[type]) {
-                inviteTypeCounts[type] = 0;
-            }
-
-            inviteTypeCounts[type]++;
-        });
-
-        return inviteTypeCounts;
     }
 
     _isAddDisabled: () => boolean;
@@ -323,8 +303,9 @@ class AddPeopleDialog extends Component<*, *> {
      * @returns {void}
      */
     _onSubmit() {
-        const inviteTypeCounts
-            = this._getInviteTypeCounts(this.state.inviteItems);
+        const { inviteItems } = this.state;
+        const invitees = inviteItems.map(({ item }) => item);
+        const inviteTypeCounts = getInviteTypeCounts(invitees);
 
         sendAnalytics(createInviteDialogEvent(
             'clicked', 'inviteButton', {
@@ -340,31 +321,15 @@ class AddPeopleDialog extends Component<*, *> {
             addToCallInProgress: true
         });
 
-        const {
-            _conference,
-            _inviteServiceUrl,
-            _inviteUrl,
-            _jwt
-        } = this.props;
+        const { dispatch } = this.props;
 
-        const inviteItems = this.state.inviteItems;
-        const items = inviteItems.map(item => item.item);
-
-        const options = {
-            conference: _conference,
-            inviteServiceUrl: _inviteServiceUrl,
-            inviteUrl: _inviteUrl,
-            inviteVideoRooms: this.props.inviteVideoRooms,
-            jwt: _jwt
-        };
-
-        sendInvitesForItems(items, options)
+        dispatch(invite(invitees))
             .then(invitesLeftToSend => {
                 // If any invites are left that means something failed to send
                 // so treat it as an error.
                 if (invitesLeftToSend.length) {
                     const erroredInviteTypeCounts
-                        = this._getInviteTypeCounts(invitesLeftToSend);
+                        = getInviteTypeCounts(invitesLeftToSend);
 
                     logger.error(`${invitesLeftToSend.length} invites failed`,
                         erroredInviteTypeCounts);
@@ -379,15 +344,12 @@ class AddPeopleDialog extends Component<*, *> {
                         addToCallError: true
                     });
 
-                    const unsentInviteIDs = invitesLeftToSend.map(invite =>
-                        invite.id || invite.number
-                    );
-
-                    const itemsToSelect = inviteItems.filter(invite =>
-                        unsentInviteIDs.includes(
-                            invite.item.id || invite.item.number
-                        )
-                    );
+                    const unsentInviteIDs
+                        = invitesLeftToSend.map(invitee =>
+                            invitee.id || invitee.number);
+                    const itemsToSelect
+                        = inviteItems.filter(({ item }) =>
+                            unsentInviteIDs.includes(item.id || item.number));
 
                     if (this._multiselect) {
                         this._multiselect.setSelectedItems(itemsToSelect);
@@ -400,7 +362,7 @@ class AddPeopleDialog extends Component<*, *> {
                     addToCallInProgress: false
                 });
 
-                this.props.hideDialog();
+                dispatch(hideDialog());
             });
     }
 
@@ -481,18 +443,17 @@ class AddPeopleDialog extends Component<*, *> {
      */
     _query(query = '') {
         const {
-            enableAddPeople,
-            enableDialOut,
+            addPeopleEnabled,
+            dialOutEnabled,
             _dialOutAuthUrl,
             _jwt,
             _peopleSearchQueryTypes,
             _peopleSearchUrl
         } = this.props;
-
         const options = {
             dialOutAuthUrl: _dialOutAuthUrl,
-            enableAddPeople,
-            enableDialOut,
+            addPeopleEnabled,
+            dialOutEnabled,
             jwt: _jwt,
             peopleSearchQueryTypes: _peopleSearchQueryTypes,
             peopleSearchUrl: _peopleSearchUrl
@@ -580,36 +541,36 @@ class AddPeopleDialog extends Component<*, *> {
  * @param {Object} state - The Redux state.
  * @private
  * @returns {{
- *     _conference: Object,
  *     _dialOutAuthUrl: string,
- *     _inviteServiceUrl: string,
- *     _inviteUrl: string,
  *     _jwt: string,
  *     _peopleSearchQueryTypes: Array<string>,
  *     _peopleSearchUrl: string
  * }}
  */
 function _mapStateToProps(state) {
-    const { conference } = state['features/base/conference'];
     const {
         dialOutAuthUrl,
-        inviteServiceUrl,
+        enableFeaturesBasedOnToken,
         peopleSearchQueryTypes,
         peopleSearchUrl
     } = state['features/base/config'];
+    let footerTextEnabled = false;
+
+    if (enableFeaturesBasedOnToken) {
+        const { features = {} } = getLocalParticipant(state);
+
+        if (String(features['outbound-call']) !== 'true') {
+            footerTextEnabled = true;
+        }
+    }
 
     return {
-        _conference: conference,
         _dialOutAuthUrl: dialOutAuthUrl,
-        _inviteServiceUrl: inviteServiceUrl,
-        _inviteUrl: getInviteURL(state),
+        _footerTextEnabled: footerTextEnabled,
         _jwt: state['features/base/jwt'].jwt,
         _peopleSearchQueryTypes: peopleSearchQueryTypes,
         _peopleSearchUrl: peopleSearchUrl
     };
 }
 
-export default translate(connect(_mapStateToProps, {
-    hideDialog,
-    inviteVideoRooms })(
-    AddPeopleDialog));
+export default translate(connect(_mapStateToProps)(AddPeopleDialog));

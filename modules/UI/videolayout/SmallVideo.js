@@ -1,4 +1,4 @@
-/* global $, APP, JitsiMeetJS, interfaceConfig */
+/* global $, APP, interfaceConfig */
 
 /* eslint-disable no-unused-vars */
 import React from 'react';
@@ -12,7 +12,9 @@ import { AudioLevelIndicator }
     from '../../../react/features/audio-level-indicator';
 import {
     Avatar as AvatarDisplay,
-    getAvatarURLByParticipantId
+    getAvatarURLByParticipantId,
+    getPinnedParticipant,
+    pinParticipant
 } from '../../../react/features/base/participants';
 import {
     ConnectionIndicator
@@ -31,8 +33,6 @@ const logger = require('jitsi-meet-logger').getLogger(__filename);
 
 import UIUtil from '../util/UIUtil';
 import UIEvents from '../../../service/UI/UIEvents';
-
-const RTCUIHelper = JitsiMeetJS.util.RTCUIHelper;
 
 /**
  * Display mode constant used when video is being displayed on the small video.
@@ -85,7 +85,6 @@ function SmallVideo(VideoLayout) {
     this.audioStream = null;
     this.VideoLayout = VideoLayout;
     this.videoIsHovered = false;
-    this.hideDisplayName = false;
 
     // we can stop updating the thumbnail
     this.disableUpdateView = false;
@@ -239,8 +238,7 @@ SmallVideo.createStreamElement = function(stream) {
         element.setAttribute('muted', 'true');
     }
 
-    RTCUIHelper.setAutoPlay(element, true);
-
+    element.autoplay = true;
     element.id = SmallVideo.getStreamElementID(stream);
 
     return element;
@@ -437,7 +435,7 @@ SmallVideo.prototype.removeModeratorIndicator = function() {
  * array (after checking its length of course!).
  */
 SmallVideo.prototype.selectVideoElement = function() {
-    return $(RTCUIHelper.findVideoElement(this.container));
+    return $($(this.container).find('video')[0]);
 };
 
 /**
@@ -549,7 +547,8 @@ SmallVideo.prototype.isVideoPlayable = function() {
 SmallVideo.prototype.selectDisplayMode = function() {
     // Display name is always and only displayed when user is on the stage
     if (this.isCurrentlyOnLargeVideo()) {
-        return DISPLAY_BLACKNESS_WITH_NAME;
+        return this.isVideoPlayable() && !APP.conference.isAudioOnly()
+            ? DISPLAY_BLACKNESS_WITH_NAME : DISPLAY_AVATAR_WITH_NAME;
     } else if (this.isVideoPlayable()
         && this.selectVideoElement().length
         && !APP.conference.isAudioOnly()) {
@@ -599,33 +598,30 @@ SmallVideo.prototype.updateView = function() {
         }
     }
 
+    this.$container.removeClass((index, classNames) =>
+        classNames.split(' ').filter(name => name.startsWith('display-')));
+
     // Determine whether video, avatar or blackness should be displayed
     const displayMode = this.selectDisplayMode();
 
-    // Show/hide video.
-
-    UIUtil.setVisibleBySelector(this.selectVideoElement(),
-                                displayMode === DISPLAY_VIDEO
-                                || displayMode === DISPLAY_VIDEO_WITH_NAME);
-
-    // Show/hide the avatar.
-    UIUtil.setVisibleBySelector(this.$avatar(),
-                                displayMode === DISPLAY_AVATAR
-                                || displayMode === DISPLAY_AVATAR_WITH_NAME);
-
-    // Show/hide the display name.
-    UIUtil.setVisibleBySelector(this.$displayName(),
-                                !this.hideDisplayName
-                                && (displayMode === DISPLAY_BLACKNESS_WITH_NAME
-                                || displayMode === DISPLAY_VIDEO_WITH_NAME
-                                || displayMode === DISPLAY_AVATAR_WITH_NAME));
-
-    // show hide overlay when there is a video or avatar under
-    // the display name
-    UIUtil.setVisibleBySelector(this.$container.find(
-                                '.videocontainer__hoverOverlay'),
-                                displayMode === DISPLAY_AVATAR_WITH_NAME
-                                || displayMode === DISPLAY_VIDEO_WITH_NAME);
+    switch (displayMode) {
+    case DISPLAY_AVATAR_WITH_NAME:
+        this.$container.addClass('display-avatar-with-name');
+        break;
+    case DISPLAY_BLACKNESS_WITH_NAME:
+        this.$container.addClass('display-name-on-black');
+        break;
+    case DISPLAY_VIDEO:
+        this.$container.addClass('display-video');
+        break;
+    case DISPLAY_VIDEO_WITH_NAME:
+        this.$container.addClass('display-name-on-video');
+        break;
+    case DISPLAY_AVATAR:
+    default:
+        this.$container.addClass('display-avatar-only');
+        break;
+    }
 };
 
 /**
@@ -679,6 +675,10 @@ SmallVideo.prototype.showDominantSpeakerIndicator = function(show) {
         logger.warn(`Unable to set dominant speaker indicator - ${
             this.videoSpanId} does not exist`);
 
+        return;
+    }
+
+    if (this._showDominantSpeaker === show) {
         return;
     }
 
@@ -816,6 +816,22 @@ SmallVideo.prototype.updateIndicators = function() {
             </I18nextProvider>,
         indicatorToolbar
     );
+};
+
+/**
+ * Pins the participant displayed by this thumbnail or unpins if already pinned.
+ *
+ * @private
+ * @returns {void}
+ */
+SmallVideo.prototype._togglePin = function() {
+    const pinnedParticipant
+        = getPinnedParticipant(APP.store.getState()) || {};
+    const participantIdToPin
+        = pinnedParticipant && pinnedParticipant.id === this.id
+            ? null : this.id;
+
+    APP.store.dispatch(pinParticipant(participantIdToPin));
 };
 
 /**

@@ -6,13 +6,14 @@ var interfaceConfig = {
     DEFAULT_BACKGROUND: '#474747',
 
     /**
-     * In case the desktop sharing is disabled through the config the button
-     * will not be hidden, but displayed as disabled with this text us as
-     * a tooltip.
+     * Whether or not the blurred video background for large video should be
+     * displayed on browsers that can support it.
      */
-    DESKTOP_SHARING_BUTTON_DISABLED_TOOLTIP: null,
+    DISABLE_VIDEO_BACKGROUND: false,
+
     INITIAL_TOOLBAR_TIMEOUT: 20000,
     TOOLBAR_TIMEOUT: 4000,
+    TOOLBAR_ALWAYS_VISIBLE: false,
     DEFAULT_REMOTE_DISPLAY_NAME: "Fellow User",
     DEFAULT_LOCAL_DISPLAY_NAME: "me",
     SHOW_JITSI_WATERMARK: false,
@@ -35,21 +36,20 @@ var interfaceConfig = {
     AUTHENTICATION_ENABLE: true,
 
     /**
-     * the toolbar buttons line is intentionally left in one line, to be able
-     * to easily override values or remove them using regex
+     * The name of the toolbar buttons to display in the toolbar. If present,
+     * the button will display. Exceptions are "livestreaming" and "recording"
+     * which also require being a moderator and some values in config.js to be
+     * enabled. Also, the "profile" button will not display for user's with a
+     * jwt.
      */
     TOOLBAR_BUTTONS: [
-
-        // main toolbar
         'microphone', 'camera', 'desktop', 'fullscreen', 'fodeviceselection', 'hangup',
-
-        // extended toolbar
-        'profile', 'info', 'chat', 'recording', 'etherpad',
+        'profile', 'info', 'chat', 'recording', 'livestreaming', 'etherpad',
         'sharedvideo', 'settings', 'raisehand', 'videoquality', 'filmstrip',
         'invite', 'feedback', 'stats', 'shortcuts'
     ],
 
-    SETTINGS_SECTIONS: [ 'language', 'devices', 'moderator' ],
+    SETTINGS_SECTIONS: [ 'devices', 'language', 'moderator', 'profile' ],
 
     // Determines how the video would fit the screen. 'both' would fit the whole
     // screen, 'height' would fit the original video height to the height of the
@@ -161,17 +161,7 @@ var interfaceConfig = {
     /**
      * Specify mobile app scheme for opening the app from the mobile browser.
      */
-    // APP_SCHEME: 'org.jitsi.meet',
-
-    /**
-     * Temporary feature flag to debug performance with the large video
-     * background blur. On initial implementation, blur was always enabled so a
-     * falsy value here will be used to keep blur enabled, as will the value
-     * "video", and will render the blur over a video element. The value
-     * "canvas" will display the blur over a canvas element, while the value
-     * "off" will prevent the background from rendering.
-     */
-    // _BACKGROUND_BLUR: undefined
+    // APP_SCHEME: 'org.jitsi.meet'
 };
 
 /* eslint-enable no-unused-vars, no-var, max-len */

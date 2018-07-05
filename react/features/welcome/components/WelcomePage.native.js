@@ -3,7 +3,6 @@ import {
     Animated,
     Keyboard,
     SafeAreaView,
-    Switch,
     TextInput,
     TouchableHighlight,
     TouchableOpacity,
@@ -14,8 +13,7 @@ import { connect } from 'react-redux';
 import { translate } from '../../base/i18n';
 import { Icon } from '../../base/font-icons';
 import { MEDIA_TYPE } from '../../base/media';
-import { updateProfile } from '../../base/profile';
-import { LoadingIndicator, Header, Text } from '../../base/react';
+import { Header, LoadingIndicator, Text } from '../../base/react';
 import { ColorPalette } from '../../base/styles';
 import {
     createDesiredLocalTracks,
@@ -26,11 +24,8 @@ import { SettingsView } from '../../settings';
 import { AbstractWelcomePage, _mapStateToProps } from './AbstractWelcomePage';
 import { setSideBarVisible } from '../actions';
 import LocalVideoTrackUnderlay from './LocalVideoTrackUnderlay';
-import styles, {
-    PLACEHOLDER_TEXT_COLOR,
-    SWITCH_THUMB_COLOR,
-    SWITCH_UNDER_COLOR
-} from './styles';
+import styles, { PLACEHOLDER_TEXT_COLOR } from './styles';
+import VideoSwitch from './VideoSwitch';
 import WelcomePageLists from './WelcomePageLists';
 import WelcomePageSideBar from './WelcomePageSideBar';
 
@@ -52,11 +47,13 @@ class WelcomePage extends AbstractWelcomePage {
         this.state.hintBoxAnimation = new Animated.Value(0);
 
         // Bind event handlers so they are only bound once per instance.
-        this._getHintBoxStyle = this._getHintBoxStyle.bind(this);
         this._onFieldFocusChange = this._onFieldFocusChange.bind(this);
         this._onShowSideBar = this._onShowSideBar.bind(this);
-        this._onStartAudioOnlyChange = this._onStartAudioOnlyChange.bind(this);
         this._renderHintBox = this._renderHintBox.bind(this);
+
+        // Specially bind functions to avoid function definition on render.
+        this._onFieldBlur = this._onFieldFocusChange.bind(this, false);
+        this._onFieldFocus = this._onFieldFocusChange.bind(this, true);
     }
 
     /**
@@ -72,7 +69,7 @@ class WelcomePage extends AbstractWelcomePage {
 
         const { dispatch } = this.props;
 
-        if (this.props._profile.startAudioOnly) {
+        if (this.props._settings.startAudioOnly) {
             dispatch(destroyLocalTracks());
         } else {
             dispatch(createDesiredLocalTracks(MEDIA_TYPE.VIDEO));
@@ -87,8 +84,9 @@ class WelcomePage extends AbstractWelcomePage {
      * @returns {ReactElement}
      */
     render() {
-        const { buttonStyle, pageStyle, textStyle } = Header;
-        const { t, _profile } = this.props;
+        const { buttonStyle, pageStyle } = Header;
+        const roomnameAccLabel = 'welcomepage.accessibilityLabel.roomname';
+        const { t } = this.props;
 
         return (
             <LocalVideoTrackUnderlay style = { styles.welcomePage }>
@@ -99,32 +97,19 @@ class WelcomePage extends AbstractWelcomePage {
                                 name = 'menu'
                                 style = { buttonStyle } />
                         </TouchableOpacity>
-                        <View style = { styles.audioVideoSwitchContainer }>
-                            <Text style = { textStyle } >
-                                { t('welcomepage.audioVideoSwitch.video') }
-                            </Text>
-                            <Switch
-                                onTintColor = { SWITCH_UNDER_COLOR }
-                                onValueChange = { this._onStartAudioOnlyChange }
-                                style = { styles.audioVideoSwitch }
-                                thumbTintColor = { SWITCH_THUMB_COLOR }
-                                value = { _profile.startAudioOnly } />
-                            <Text style = { textStyle } >
-                                { t('welcomepage.audioVideoSwitch.audio') }
-                            </Text>
-                        </View>
+                        <VideoSwitch />
                     </Header>
                     <SafeAreaView style = { styles.roomContainer } >
                         <View style = { styles.joinControls } >
                             <TextInput
-                                accessibilityLabel = { 'Input room name.' }
+                                accessibilityLabel = { t(roomnameAccLabel) }
                                 autoCapitalize = 'none'
                                 autoComplete = { false }
                                 autoCorrect = { false }
                                 autoFocus = { false }
-                                onBlur = { this._onFieldFocusChange(false) }
+                                onBlur = { this._onFieldBlur }
                                 onChangeText = { this._onRoomChange }
-                                onFocus = { this._onFieldFocusChange(true) }
+                                onFocus = { this._onFieldFocus }
                                 onSubmitEditing = { this._onJoin }
                                 placeholder = { t('welcomepage.roomname') }
                                 placeholderTextColor = {
@@ -168,27 +153,26 @@ class WelcomePage extends AbstractWelcomePage {
      *
      * @private
      * @param {boolean} focused - The focused state of the field.
-     * @returns {Function}
+     * @returns {void}
      */
     _onFieldFocusChange(focused) {
-        return () => {
-            if (focused) {
-                this.setState({
-                    _fieldFocused: true
-                });
-            }
+        focused
+            && this.setState({
+                _fieldFocused: true
+            });
 
-            Animated.timing(this.state.hintBoxAnimation, {
+        Animated.timing(
+            this.state.hintBoxAnimation,
+            {
                 duration: 300,
                 toValue: focused ? 1 : 0
-            }).start(animationState => {
-                if (animationState.finished && !focused) {
-                    this.setState({
+            })
+            .start(animationState =>
+                animationState.finished
+                    && !focused
+                    && this.setState({
                         _fieldFocused: false
-                    });
-                }
-            });
-        };
+                    }));
     }
 
     /**
@@ -200,22 +184,6 @@ class WelcomePage extends AbstractWelcomePage {
     _onShowSideBar() {
         Keyboard.dismiss();
         this.props.dispatch(setSideBarVisible(true));
-    }
-
-    /**
-     * Handles the audio-video switch changes.
-     *
-     * @private
-     * @param {boolean} startAudioOnly - The new startAudioOnly value.
-     * @returns {void}
-     */
-    _onStartAudioOnlyChange(startAudioOnly) {
-        const { dispatch } = this.props;
-
-        dispatch(updateProfile({
-            ...this.props._profile,
-            startAudioOnly
-        }));
     }
 
     /**
@@ -252,6 +220,7 @@ class WelcomePage extends AbstractWelcomePage {
      * @returns {ReactElement}
      */
     _renderJoinButton() {
+        const { t } = this.props;
         let children;
 
         /* eslint-disable no-extra-parens */
@@ -281,7 +250,8 @@ class WelcomePage extends AbstractWelcomePage {
 
         return (
             <TouchableHighlight
-                accessibilityLabel = { 'Tap to Join.' }
+                accessibilityLabel =
+                    { t('welcomepage.accessibilityLabel.join') }
                 disabled = { buttonDisabled }
                 onPress = { this._onJoin }
                 style = { [
@@ -289,9 +259,7 @@ class WelcomePage extends AbstractWelcomePage {
                     buttonDisabled ? styles.buttonDisabled : null
                 ] }
                 underlayColor = { ColorPalette.white }>
-                {
-                    children
-                }
+                { children }
             </TouchableHighlight>
         );
     }

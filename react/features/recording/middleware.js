@@ -1,27 +1,187 @@
-// @flow
+/* @flow */
 
-import { MiddlewareRegistry } from '../base/redux';
-import UIEvents from '../../../service/UI/UIEvents';
+import { CONFERENCE_WILL_JOIN, getCurrentConference } from '../base/conference';
+import JitsiMeetJS, {
+    JitsiConferenceEvents,
+    JitsiRecordingConstants
+} from '../base/lib-jitsi-meet';
+import { MiddlewareRegistry, StateListenerRegistry } from '../base/redux';
+import {
+    playSound,
+    registerSound,
+    stopSound,
+    unregisterSound
+} from '../base/sounds';
 
-import { TOGGLE_RECORDING } from './actionTypes';
+import { APP_WILL_MOUNT, APP_WILL_UNMOUNT } from '../app';
 
-declare var APP: Object;
+import {
+    clearRecordingSessions,
+    hidePendingRecordingNotification,
+    showPendingRecordingNotification,
+    showRecordingError,
+    showStoppedRecordingNotification,
+    updateRecordingSessionData
+} from './actions';
+import { RECORDING_SESSION_UPDATED } from './actionTypes';
+import { RECORDING_OFF_SOUND_ID, RECORDING_ON_SOUND_ID } from './constants';
+import { getSessionById } from './functions';
+import {
+    RECORDING_OFF_SOUND_FILE,
+    RECORDING_ON_SOUND_FILE
+} from './sounds';
 
 /**
- * Implements the middleware of the feature recording.
+ * StateListenerRegistry provides a reliable way to detect the leaving of a
+ * conference, where we need to clean up the recording sessions.
+ */
+StateListenerRegistry.register(
+    /* selector */ state => getCurrentConference(state),
+    /* listener */ (conference, { dispatch }) => {
+        if (!conference) {
+            dispatch(clearRecordingSessions());
+        }
+    }
+);
+
+/**
+ * The redux middleware to handle the recorder updates in a React way.
  *
  * @param {Store} store - The redux store.
  * @returns {Function}
  */
-// eslint-disable-next-line no-unused-vars
-MiddlewareRegistry.register(store => next => action => {
+MiddlewareRegistry.register(({ dispatch, getState }) => next => action => {
+    let oldSessionData;
+
+    if (action.type === RECORDING_SESSION_UPDATED) {
+        oldSessionData
+            = getSessionById(getState(), action.sessionData.id);
+    }
+
+    const result = next(action);
+
     switch (action.type) {
-    case TOGGLE_RECORDING:
-        if (typeof APP === 'object') {
-            APP.UI.emitEvent(UIEvents.TOGGLE_RECORDING);
-        }
+    case APP_WILL_MOUNT:
+        dispatch(registerSound(
+            RECORDING_OFF_SOUND_ID,
+            RECORDING_OFF_SOUND_FILE));
+
+        dispatch(registerSound(
+            RECORDING_ON_SOUND_ID,
+            RECORDING_ON_SOUND_FILE));
+
+        break;
+
+    case APP_WILL_UNMOUNT:
+        dispatch(unregisterSound(RECORDING_OFF_SOUND_ID));
+        dispatch(unregisterSound(RECORDING_ON_SOUND_ID));
+
+        break;
+
+    case CONFERENCE_WILL_JOIN: {
+        const { conference } = action;
+
+        conference.on(
+            JitsiConferenceEvents.RECORDER_STATE_CHANGED,
+            recorderSession => {
+
+                if (recorderSession) {
+                    recorderSession.getID()
+                        && dispatch(
+                            updateRecordingSessionData(recorderSession));
+
+                    recorderSession.getError()
+                        && _showRecordingErrorNotification(
+                            recorderSession, dispatch);
+                }
+
+                return;
+            });
+
         break;
     }
 
-    return next(action);
+    case RECORDING_SESSION_UPDATED: {
+        const updatedSessionData
+            = getSessionById(getState(), action.sessionData.id);
+
+        if (updatedSessionData.mode === JitsiRecordingConstants.mode.FILE) {
+            const { PENDING, OFF, ON } = JitsiRecordingConstants.status;
+
+            if (updatedSessionData.status === PENDING
+                && (!oldSessionData || oldSessionData.status !== PENDING)) {
+                dispatch(showPendingRecordingNotification());
+            } else if (updatedSessionData.status !== PENDING) {
+                dispatch(hidePendingRecordingNotification());
+
+                if (updatedSessionData.status === ON
+                    && (!oldSessionData || oldSessionData.status !== ON)) {
+                    dispatch(playSound(RECORDING_ON_SOUND_ID));
+                } else if (updatedSessionData.status === OFF
+                    && (!oldSessionData || oldSessionData.status !== OFF)) {
+                    dispatch(stopSound(RECORDING_ON_SOUND_ID));
+                    dispatch(playSound(RECORDING_OFF_SOUND_ID));
+                    dispatch(showStoppedRecordingNotification());
+                }
+            }
+        }
+
+        break;
+    }
+    }
+
+    return result;
 });
+
+/**
+ * Shows a notification about an error in the recording session. A
+ * default notification will display if no error is specified in the passed
+ * in recording session.
+ *
+ * @private
+ * @param {Object} recorderSession - The recorder session model from the
+ * lib.
+ * @param {Dispatch} dispatch - The Redux Dispatch function.
+ * @returns {void}
+ */
+function _showRecordingErrorNotification(recorderSession, dispatch) {
+    const isStreamMode
+        = recorderSession.getMode()
+            === JitsiMeetJS.constants.recording.mode.STREAM;
+
+    switch (recorderSession.getError()) {
+    case JitsiMeetJS.constants.recording.error.SERVICE_UNAVAILABLE:
+        dispatch(showRecordingError({
+            descriptionKey: 'recording.unavailable',
+            descriptionArguments: {
+                serviceName: isStreamMode
+                    ? 'Live Streaming service'
+                    : 'Recording service'
+            },
+            titleKey: isStreamMode
+                ? 'liveStreaming.unavailableTitle'
+                : 'recording.unavailableTitle'
+        }));
+        break;
+    case JitsiMeetJS.constants.recording.error.RESOURCE_CONSTRAINT:
+        dispatch(showRecordingError({
+            descriptionKey: isStreamMode
+                ? 'liveStreaming.busy'
+                : 'recording.busy',
+            titleKey: isStreamMode
+                ? 'liveStreaming.busyTitle'
+                : 'recording.busyTitle'
+        }));
+        break;
+    default:
+        dispatch(showRecordingError({
+            descriptionKey: isStreamMode
+                ? 'liveStreaming.error'
+                : 'recording.error',
+            titleKey: isStreamMode
+                ? 'liveStreaming.failedToStart'
+                : 'recording.failedToStart'
+        }));
+        break;
+    }
+}

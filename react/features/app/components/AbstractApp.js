@@ -1,20 +1,20 @@
 /* global APP */
 
 import PropTypes from 'prop-types';
-import React, { Component } from 'react';
+import React, { Component, Fragment } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { Provider } from 'react-redux';
 import { compose, createStore } from 'redux';
 import Thunk from 'redux-thunk';
 
 import { i18next } from '../../base/i18n';
+import { localParticipantLeft } from '../../base/participants';
+import { RouteRegistry } from '../../base/react';
 import {
-    localParticipantJoined,
-    localParticipantLeft
-} from '../../base/participants';
-import '../../base/profile';
-import { Fragment, RouteRegistry } from '../../base/react';
-import { MiddlewareRegistry, ReducerRegistry } from '../../base/redux';
+    MiddlewareRegistry,
+    ReducerRegistry,
+    StateListenerRegistry
+} from '../../base/redux';
 import { SoundCollection } from '../../base/sounds';
 import { PersistenceRegistry } from '../../base/storage';
 import { toURLString } from '../../base/util';
@@ -26,6 +26,9 @@ import { appNavigate, appWillMount, appWillUnmount } from '../actions';
 /**
  * The default URL to open if no other was specified to {@code AbstractApp}
  * via props.
+ *
+ * FIXME: This is not at the best place here. This should be either in the
+ * base/settings feature or a default in base/config.
  */
 const DEFAULT_URL = 'https://meet.jit.si';
 
@@ -124,44 +127,16 @@ export class AbstractApp extends Component {
      */
     componentWillMount() {
         this._init.then(() => {
-            const { dispatch, getState } = this._getStore();
+            const { dispatch } = this._getStore();
 
             dispatch(appWillMount(this));
 
-            // FIXME I believe it makes more sense for a middleware to dispatch
-            // localParticipantJoined on APP_WILL_MOUNT because the order of
-            // actions is important, not the call site. Moreover, we've got
-            // localParticipant business logic in the React Component
-            // (i.e. UI) AbstractApp now.
-            let localParticipant = {};
-
-            if (typeof APP === 'object') {
-                localParticipant = {
-                    avatarID: APP.settings.getAvatarId(),
-                    avatarURL: APP.settings.getAvatarUrl(),
-                    email: APP.settings.getEmail(),
-                    name: APP.settings.getDisplayName()
-                };
-            }
-
-            // Profile is the new React compatible settings.
-            const profile = getState()['features/base/profile'];
-
-            if (profile) {
-                localParticipant.email
-                    = profile.email || localParticipant.email;
-                localParticipant.name
-                    = profile.displayName || localParticipant.name;
-            }
-
-            // We set the initialized state here and not in the contructor to
+            // We set the initialized state here and not in the constructor to
             // make sure that {@code componentWillMount} gets invoked before
             // the app tries to render the actual app content.
             this.setState({
                 appAsyncInitialized: true
             });
-
-            dispatch(localParticipantJoined(localParticipant));
 
             // If a URL was explicitly specified to this React Component,
             // then open it; otherwise, use a default.
@@ -383,8 +358,8 @@ export class AbstractApp extends Component {
 
         return (
             this.props.defaultURL
-                || this._getStore().getState()['features/base/profile']
-                    .serverURL
+                || this._getStore().getState()['features/base/settings']
+                .serverURL
                 || DEFAULT_URL);
     }
 
@@ -415,14 +390,13 @@ export class AbstractApp extends Component {
      * @returns {Store} - The redux store to be used by this
      * {@code AbstractApp}.
      */
-    _maybeCreateStore(props) {
+    _maybeCreateStore({ store }) {
         // The application Jitsi Meet is architected with redux. However, I do
         // not want consumers of the App React Component to be forced into
         // dealing with redux. If the consumer did not provide an external redux
         // store, utilize an internal redux store.
-        let store = props.store;
-
         if (typeof store === 'undefined') {
+            // eslint-disable-next-line no-param-reassign
             store = this._createStore();
 
             // This is temporary workaround to be able to dispatch actions from
@@ -433,6 +407,9 @@ export class AbstractApp extends Component {
                 APP.store = store;
             }
         }
+
+        // StateListenerRegistry
+        store && StateListenerRegistry.subscribe(store);
 
         return store;
     }

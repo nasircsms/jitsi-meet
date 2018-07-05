@@ -10,6 +10,7 @@ import { VideoTrack } from '../../../react/features/base/media';
 import {
     getAvatarURLByParticipantId
 } from '../../../react/features/base/participants';
+import { updateSettings } from '../../../react/features/base/settings';
 /* eslint-enable no-unused-vars */
 
 const logger = require('jitsi-meet-logger').getLogger(__filename);
@@ -20,9 +21,9 @@ import SmallVideo from './SmallVideo';
 /**
  *
  */
-function LocalVideo(VideoLayout, emitter) {
+function LocalVideo(VideoLayout, emitter, streamEndedCallback) {
     this.videoSpanId = 'localVideoContainer';
-
+    this.streamEndedCallback = streamEndedCallback;
     this.container = this.createContainer();
     this.$container = $(this.container);
     $('#filmstripLocalVideoThumbnail').append(this.container);
@@ -121,9 +122,10 @@ LocalVideo.prototype.changeVideo = function(stream) {
 
     // eslint-disable-next-line eqeqeq
     const isVideo = stream.videoType != 'desktop';
+    const settings = APP.store.getState()['features/base/settings'];
 
     this._enableDisableContextMenu(isVideo);
-    this.setFlipX(isVideo ? APP.settings.getLocalFlipX() : false);
+    this.setFlipX(isVideo ? settings.localFlipX : false);
 
     const endedHandler = () => {
 
@@ -135,15 +137,23 @@ LocalVideo.prototype.changeVideo = function(stream) {
             ReactDOM.unmountComponentAtNode(localVideoContainer);
         }
 
-        // when removing only the video element and we are on stage
-        // update the stage
-        if (this.isCurrentlyOnLargeVideo()) {
-            this.VideoLayout.updateLargeVideo(this.id);
-        }
+        this._notifyOfStreamEnded();
         stream.off(JitsiTrackEvents.LOCAL_TRACK_STOPPED, endedHandler);
     };
 
     stream.on(JitsiTrackEvents.LOCAL_TRACK_STOPPED, endedHandler);
+};
+
+/**
+ * Notify any subscribers of the local video stream ending.
+ *
+ * @private
+ * @returns {void}
+ */
+LocalVideo.prototype._notifyOfStreamEnded = function() {
+    if (this.streamEndedCallback) {
+        this.streamEndedCallback(this.id);
+    }
 };
 
 /**
@@ -194,10 +204,14 @@ LocalVideo.prototype._buildContextMenu = function() {
             flip: {
                 name: 'Flip',
                 callback: () => {
-                    const val = !APP.settings.getLocalFlipX();
+                    const { store } = APP;
+                    const val = !store.getState()['features/base/settings']
+                    .localFlipX;
 
                     this.setFlipX(val);
-                    APP.settings.setLocalFlipX(val);
+                    store.dispatch(updateSettings({
+                        localFlipX: val
+                    }));
                 }
             }
         },
@@ -244,17 +258,14 @@ LocalVideo.prototype._onContainerClick = function(event) {
         = $source.parents('.displayNameContainer').length > 0;
     const clickedOnPopover = $source.parents('.popover').length > 0
             || classList.contains('popover');
-
     const ignoreClick = clickedOnDisplayName || clickedOnPopover;
 
-    // FIXME: with Temasys plugin event arg is not an event, but the clicked
-    // object itself, so we have to skip this call
     if (event.stopPropagation && !ignoreClick) {
         event.stopPropagation();
     }
 
     if (!ignoreClick) {
-        this.VideoLayout.handleVideoThumbClicked(this.id);
+        this._togglePin();
     }
 };
 
