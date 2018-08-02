@@ -16,7 +16,6 @@ import SharedVideoManager from './shared_video/SharedVideo';
 import VideoLayout from './videolayout/VideoLayout';
 import Filmstrip from './videolayout/Filmstrip';
 
-import { updateDeviceList } from '../../react/features/base/devices';
 import { JitsiTrackErrors } from '../../react/features/base/lib-jitsi-meet';
 import {
     getLocalParticipant,
@@ -321,11 +320,6 @@ UI.start = function() {
         SidePanels.init(eventEmitter);
     }
 
-    const filmstripTypeClassname = interfaceConfig.VERTICAL_FILMSTRIP
-        ? 'vertical-filmstrip' : 'horizontal-filmstrip';
-
-    $('body').addClass(filmstripTypeClassname);
-
     document.title = interfaceConfig.APP_NAME;
 };
 
@@ -492,7 +486,10 @@ UI.updateUserRole = user => {
  * @param {string} status - The new status.
  */
 UI.updateUserStatus = (user, status) => {
-    if (!status) {
+    const reduxState = APP.store.getState() || {};
+    const { calleeInfoVisible } = reduxState['features/invite'] || {};
+
+    if (!status || calleeInfoVisible) {
         return;
     }
 
@@ -800,10 +797,8 @@ UI.onLocalRaiseHandChanged = function(isRaisedHand) {
 
 /**
  * Update list of available physical devices.
- * @param {object[]} devices new list of available devices
  */
-UI.onAvailableDevicesChanged = function(devices) {
-    APP.store.dispatch(updateDeviceList(devices));
+UI.onAvailableDevicesChanged = function() {
     APP.conference.updateAudioIconEnabled();
     APP.conference.updateVideoIconEnabled();
 };

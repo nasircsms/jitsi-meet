@@ -11,12 +11,11 @@ import {
 } from '../../../analytics';
 import { openDialog } from '../../../base/dialog';
 import { translate } from '../../../base/i18n';
-import { JitsiRecordingConstants } from '../../../base/lib-jitsi-meet';
 import {
     getLocalParticipant,
     getParticipants,
-    isLocalParticipantModerator,
-    participantUpdated
+    participantUpdated,
+    isLocalParticipantModerator
 } from '../../../base/participants';
 import { getLocalVideoTrack, toggleScreensharing } from '../../../base/tracks';
 import { ChatCounter } from '../../../chat';
@@ -30,10 +29,8 @@ import {
 } from '../../../invite';
 import { openKeyboardShortcutsDialog } from '../../../keyboard-shortcuts';
 import {
-    RecordButton,
-    StartLiveStreamDialog,
-    StopLiveStreamDialog,
-    getActiveSession
+    LiveStreamButton,
+    RecordButton
 } from '../../../recording';
 import {
     SETTINGS_TABS,
@@ -60,6 +57,9 @@ import OverflowMenuItem from './OverflowMenuItem';
 import OverflowMenuProfileItem from './OverflowMenuProfileItem';
 import ToolbarButton from './ToolbarButton';
 import VideoMuteButton from '../VideoMuteButton';
+import {
+    ClosedCaptionButton
+} from '../../../transcribing';
 
 /**
  * The type of the React {@code Component} props of {@link Toolbox}.
@@ -124,22 +124,6 @@ type Props = {
     _isGuest: boolean,
 
     /**
-     * The tooltip key to use when live streaming is disabled. Or undefined
-     * if non to be shown and the button to be hidden.
-     */
-    _liveStreamingDisabledTooltipKey: boolean,
-
-    /**
-     * Whether or not the live streaming feature is enabled for use.
-     */
-    _liveStreamingEnabled: boolean,
-
-    /**
-     * The current live streaming session, if any.
-     */
-    _liveStreamingSession: ?Object,
-
-    /**
      * The ID of the local participant.
      */
     _localParticipantID: String,
@@ -163,6 +147,11 @@ type Props = {
      * Whether or not the local participant is sharing a YouTube video.
      */
     _sharingVideo: boolean,
+
+    /**
+     * Whether or not transcribing is enabled.
+     */
+    _transcribingEnabled: boolean,
 
     /**
      * Flag showing whether toolbar is visible.
@@ -230,8 +219,6 @@ class Toolbox extends Component<Props> {
             = this._onToolbarToggleEtherpad.bind(this);
         this._onToolbarToggleFullScreen
             = this._onToolbarToggleFullScreen.bind(this);
-        this._onToolbarToggleLiveStreaming
-            = this._onToolbarToggleLiveStreaming.bind(this);
         this._onToolbarToggleProfile
             = this._onToolbarToggleProfile.bind(this);
         this._onToolbarToggleRaiseHand
@@ -324,6 +311,7 @@ class Toolbox extends Component<Props> {
             _chatOpen,
             _hideInviteButton,
             _overflowMenuVisible,
+            _transcribingEnabled,
             _raisedHand,
             _visible,
             _visibleButtons,
@@ -366,6 +354,11 @@ class Toolbox extends Component<Props> {
                                 tooltip = { t('toolbar.chat') } />
                             <ChatCounter />
                         </div> }
+                    {
+                        _transcribingEnabled
+                        && this._shouldShowButton('closedcaptions')
+                        && <ClosedCaptionButton />
+                    }
                 </div>
                 <div className = 'button-group-center'>
                     <AudioMuteButton
@@ -474,22 +467,6 @@ class Toolbox extends Component<Props> {
         const fullScreen = !this.props._fullScreen;
 
         this.props.dispatch(setFullScreen(fullScreen));
-    }
-
-    /**
-     * Dispatches an action to show a dialog for starting or stopping a live
-     * streaming session.
-     *
-     * @private
-     * @returns {void}
-     */
-    _doToggleLiveStreaming() {
-        const { _liveStreamingSession } = this.props;
-        const dialogToDisplay = _liveStreamingSession
-            ? StopLiveStreamDialog : StartLiveStreamDialog;
-
-        this.props.dispatch(
-            openDialog(dialogToDisplay, { session: _liveStreamingSession }));
     }
 
     /**
@@ -790,25 +767,6 @@ class Toolbox extends Component<Props> {
         this._doToggleFullScreen();
     }
 
-    _onToolbarToggleLiveStreaming: () => void;
-
-    /**
-     * Starts the process for enabling or disabling live streaming.
-     *
-     * @private
-     * @returns {void}
-     */
-    _onToolbarToggleLiveStreaming() {
-        sendAnalytics(createToolbarEvent(
-            'livestreaming.button',
-            {
-                'is_streaming': Boolean(this.props._liveStreamingSession),
-                type: JitsiRecordingConstants.mode.STREAM
-            }));
-
-        this._doToggleLiveStreaming();
-    }
-
     _onToolbarToggleProfile: () => void;
 
     /**
@@ -920,43 +878,6 @@ class Toolbox extends Component<Props> {
     }
 
     /**
-     * Renders an {@code OverflowMenuItem} to start or stop live streaming of
-     * the current conference.
-     *
-     * @private
-     * @returns {ReactElement}
-     */
-    _renderLiveStreamingButton() {
-        const {
-            _liveStreamingDisabledTooltipKey,
-            _liveStreamingEnabled,
-            _liveStreamingSession,
-            t
-        } = this.props;
-
-        const translationKey = _liveStreamingSession
-            ? 'dialog.stopLiveStreaming'
-            : 'dialog.startLiveStreaming';
-
-        return (
-            <OverflowMenuItem
-                accessibilityLabel
-                    = { t('dialog.accessibilityLabel.liveStreaming') }
-                disabled = { !_liveStreamingEnabled }
-                elementAfter = {
-                    <span className = 'beta-tag'>
-                        { t('recording.beta') }
-                    </span>
-                }
-                icon = 'icon-public'
-                key = 'livestreaming'
-                onClick = { this._onToolbarToggleLiveStreaming }
-                text = { t(translationKey) }
-                tooltip = { t(_liveStreamingDisabledTooltipKey) } />
-        );
-    }
-
-    /**
      * Renders the list elements of the overflow menu.
      *
      * @private
@@ -969,8 +890,6 @@ class Toolbox extends Component<Props> {
             _feedbackConfigured,
             _fullScreen,
             _isGuest,
-            _liveStreamingDisabledTooltipKey,
-            _liveStreamingEnabled,
             _sharingVideo,
             t
         } = this.props;
@@ -997,9 +916,9 @@ class Toolbox extends Component<Props> {
                     text = { _fullScreen
                         ? t('toolbar.exitFullScreen')
                         : t('toolbar.enterFullScreen') } />,
-            (_liveStreamingEnabled || _liveStreamingDisabledTooltipKey)
-                && this._shouldShowButton('livestreaming')
-                && this._renderLiveStreamingButton(),
+            <LiveStreamButton
+                key = 'livestreaming'
+                showLabel = { true } />,
             <RecordButton
                 key = 'record'
                 showLabel = { true } />,
@@ -1086,7 +1005,9 @@ function _mapStateToProps(state) {
         callStatsID,
         iAmRecorder
     } = state['features/base/config'];
-    let { liveStreamingEnabled } = state['features/base/config'];
+    let {
+        transcribingEnabled
+    } = state['features/base/config'];
     const sharedVideoStatus = state['features/shared-video'].status;
     const { current } = state['features/side-panel'];
     const {
@@ -1102,10 +1023,9 @@ function _mapStateToProps(state) {
     const dialOutEnabled = isDialOutEnabled(state);
 
     let desktopSharingDisabledTooltipKey;
-    let liveStreamingDisabledTooltipKey;
 
-    liveStreamingEnabled
-        = isLocalParticipantModerator(state) && liveStreamingEnabled;
+    transcribingEnabled
+        = isLocalParticipantModerator(state) && transcribingEnabled;
 
     if (state['features/base/config'].enableFeaturesBasedOnToken) {
         // we enable desktop sharing if any participant already have this
@@ -1122,27 +1042,6 @@ function _mapStateToProps(state) {
             desktopSharingDisabledTooltipKey
                 = 'dialog.shareYourScreenDisabled';
         }
-
-        // we enable recording if the local participant have this
-        // feature enabled
-        const { features = {} } = localParticipant;
-        const { isGuest } = state['features/base/jwt'];
-
-        liveStreamingEnabled
-            = liveStreamingEnabled && String(features.livestreaming) === 'true';
-
-        // if the feature is disabled on purpose, do no show it, no tooltip
-        if (!liveStreamingEnabled
-            && String(features.livestreaming) !== 'disabled') {
-            // button and tooltip
-            if (isGuest) {
-                liveStreamingDisabledTooltipKey
-                    = 'dialog.liveStreamingDisabledForGuestTooltip';
-            } else {
-                liveStreamingDisabledTooltipKey
-                    = 'dialog.liveStreamingDisabledTooltip';
-            }
-        }
     }
 
     return {
@@ -1158,14 +1057,11 @@ function _mapStateToProps(state) {
             iAmRecorder || (!addPeopleEnabled && !dialOutEnabled),
         _isGuest: state['features/base/jwt'].isGuest,
         _fullScreen: fullScreen,
-        _liveStreamingDisabledTooltipKey: liveStreamingDisabledTooltipKey,
-        _liveStreamingEnabled: liveStreamingEnabled,
-        _liveStreamingSession:
-             getActiveSession(state, JitsiRecordingConstants.mode.STREAM),
         _localParticipantID: localParticipant.id,
         _overflowMenuVisible: overflowMenuVisible,
         _raisedHand: localParticipant.raisedHand,
         _screensharing: localVideo && localVideo.videoType === 'desktop',
+        _transcribingEnabled: transcribingEnabled,
         _sharingVideo: sharedVideoStatus === 'playing'
             || sharedVideoStatus === 'start'
             || sharedVideoStatus === 'pause',

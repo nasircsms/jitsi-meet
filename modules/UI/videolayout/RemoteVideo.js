@@ -163,6 +163,8 @@ RemoteVideo.prototype._generatePopupContent = function() {
     const onVolumeChange = this._setAudioVolume;
     const { isModerator } = APP.conference;
     const participantID = this.id;
+    const menuPosition = interfaceConfig.VERTICAL_FILMSTRIP
+        ? 'left bottom' : 'top center';
 
     ReactDOM.render(
         <Provider store = { APP.store }>
@@ -172,6 +174,7 @@ RemoteVideo.prototype._generatePopupContent = function() {
                         initialVolumeValue = { initialVolumeValue }
                         isAudioMuted = { this.isAudioMuted }
                         isModerator = { isModerator }
+                        menuPosition = { menuPosition }
                         onMenuDisplay
                             = {this._onRemoteVideoMenuDisplay.bind(this)}
                         onRemoteControlToggle = { onRemoteControlToggle }
@@ -573,7 +576,9 @@ RemoteVideo.prototype.addPresenceLabel = function() {
         ReactDOM.render(
             <Provider store = { APP.store }>
                 <I18nextProvider i18n = { i18next }>
-                    <PresenceLabel participantID = { this.id } />
+                    <PresenceLabel
+                        participantID = { this.id }
+                        className = 'presence-label' />
                 </I18nextProvider>
             </Provider>,
             presenceLabelContainer);
@@ -640,10 +645,14 @@ RemoteVideo.createContainer = function(spanId) {
         <div class ='presence-label-container'></div>
         <span class = 'remotevideomenu'></span>`;
 
-    const remotes = document.getElementById('filmstripRemoteVideosContainer');
+    const remoteVideosContainer
+        = document.getElementById('filmstripRemoteVideosContainer');
+    const localVideoContainer
+        = document.getElementById('localVideoTileViewContainer');
 
+    remoteVideosContainer.insertBefore(container, localVideoContainer);
 
-    return remotes.appendChild(container);
+    return container;
 };
 
 export default RemoteVideo;

@@ -107,9 +107,7 @@ export function _mapStateToProps(state: Object, ownProps: Props): Object {
     }
 
     if (typeof visible === 'undefined') {
-        const visibleButtons = new Set(interfaceConfig.TOOLBAR_BUTTONS);
-
-        visible = visibleButtons.has('recording')
+        visible = interfaceConfig.TOOLBAR_BUTTONS.includes('recording')
             && (abstractProps.visible || _fileRecordingsDisabledTooltipKey);
     }
 

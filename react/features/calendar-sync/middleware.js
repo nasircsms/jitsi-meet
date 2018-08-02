@@ -3,7 +3,7 @@
 import md5 from 'js-md5';
 import RNCalendarEvents from 'react-native-calendar-events';
 
-import { APP_WILL_MOUNT } from '../app';
+import { APP_WILL_MOUNT } from '../base/app';
 import { ADD_KNOWN_DOMAINS, addKnownDomains } from '../base/known-domains';
 import { MiddlewareRegistry } from '../base/redux';
 import { APP_LINK_SCHEME, parseURIString } from '../base/util';
@@ -75,7 +75,8 @@ CALENDAR_ENABLED
         case REFRESH_CALENDAR: {
             const result = next(action);
 
-            _fetchCalendarEntries(store, true, action.forcePermission);
+            _fetchCalendarEntries(
+                store, action.isInteractive, action.forcePermission);
 
             return result;
         }

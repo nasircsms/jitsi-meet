@@ -7,8 +7,6 @@ import Recorder from './modules/recorder/Recorder';
 
 import mediaDeviceHelper from './modules/devices/mediaDeviceHelper';
 
-import { reportError } from './modules/util/helpers';
-
 import * as RemoteControlEvents
     from './service/remotecontrol/RemoteControlEvents';
 import UIEvents from './service/UI/UIEvents';
@@ -18,7 +16,6 @@ import * as JitsiMeetConferenceEvents from './ConferenceEvents';
 import {
     createDeviceChangedEvent,
     createScreenSharingEvent,
-    createSelectParticipantFailedEvent,
     createStreamSwitchDelayEvent,
     createTrackMutedEvent,
     sendAnalytics
@@ -75,6 +72,8 @@ import {
     getAvatarURLByParticipantId,
     getLocalParticipant,
     getParticipantById,
+    hiddenParticipantJoined,
+    hiddenParticipantLeft,
     localParticipantConnectionStatusChanged,
     localParticipantRoleChanged,
     MAX_DISPLAY_NAME_LENGTH,
@@ -109,6 +108,7 @@ import {
 } from './react/features/overlay';
 import { setSharedVideoStatus } from './react/features/shared-video';
 import { isButtonEnabled } from './react/features/toolbox';
+import { endpointMessageReceived } from './react/features/subtitles';
 
 const logger = require('jitsi-meet-logger').getLogger(__filename);
 
@@ -1656,12 +1656,16 @@ export default {
         room.on(JitsiConferenceEvents.PARTCIPANT_FEATURES_CHANGED,
             user => APP.UI.onUserFeaturesChanged(user));
         room.on(JitsiConferenceEvents.USER_JOINED, (id, user) => {
-            if (user.isHidden()) {
-                return;
-            }
             const displayName = user.getDisplayName();
 
+            if (user.isHidden()) {
+                APP.store.dispatch(hiddenParticipantJoined(id, displayName));
+
+                return;
+            }
+
             APP.store.dispatch(participantJoined({
+                botType: user.getBotType(),
                 conference: room,
                 id,
                 name: displayName,
@@ -1683,8 +1687,11 @@ export default {
 
         room.on(JitsiConferenceEvents.USER_LEFT, (id, user) => {
             if (user.isHidden()) {
+                APP.store.dispatch(hiddenParticipantLeft(id));
+
                 return;
             }
+
             APP.store.dispatch(participantLeft(id, room));
             logger.log('USER %s LEFT', id, user);
             APP.API.notifyUserLeft(id);
@@ -1811,24 +1818,6 @@ export default {
                     room.sendTextMessage(message);
                 });
             }
-
-            APP.UI.addListener(UIEvents.SELECTED_ENDPOINT, id => {
-                APP.API.notifyOnStageParticipantChanged(id);
-                try {
-                    // do not try to select participant if there is none (we
-                    // are alone in the room), otherwise an error will be
-                    // thrown cause reporting mechanism is not available
-                    // (datachannels currently)
-                    if (room.getParticipants().length === 0) {
-                        return;
-                    }
-
-                    room.selectParticipant(id);
-                } catch (e) {
-                    sendAnalytics(createSelectParticipantFailedEvent(e));
-                    reportError(e);
-                }
-            });
         }
 
         room.on(JitsiConferenceEvents.CONNECTION_INTERRUPTED, () => {
@@ -1862,6 +1851,21 @@ export default {
                 APP.UI.changeDisplayName(id, formattedDisplayName);
             }
         );
+        room.on(
+            JitsiConferenceEvents.BOT_TYPE_CHANGED,
+            (id, botType) => {
+
+                APP.store.dispatch(participantUpdated({
+                    conference: room,
+                    id,
+                    botType
+                }));
+            }
+        );
+
+        room.on(
+            JitsiConferenceEvents.ENDPOINT_MESSAGE_RECEIVED,
+            (...args) => APP.store.dispatch(endpointMessageReceived(...args)));
 
         room.on(
             JitsiConferenceEvents.LOCK_STATE_CHANGED,
@@ -1955,7 +1959,8 @@ export default {
             }
         );
 
-        APP.UI.addListener(UIEvents.EMAIL_CHANGED, this.changeLocalEmail);
+        APP.UI.addListener(UIEvents.EMAIL_CHANGED,
+            this.changeLocalEmail.bind(this));
         room.addCommandListener(this.commands.defaults.EMAIL, (data, from) => {
             APP.store.dispatch(participantUpdated({
                 conference: room,
@@ -2124,7 +2129,7 @@ export default {
             UIEvents.AUDIO_OUTPUT_DEVICE_CHANGED,
             audioOutputDeviceId => {
                 sendAnalytics(createDeviceChangedEvent('audio', 'output'));
-                setAudioOutputDeviceId(audioOutputDeviceId)
+                setAudioOutputDeviceId(audioOutputDeviceId, APP.store.dispatch)
                     .then(() => logger.log('changed audio output device'))
                     .catch(err => {
                         logger.warn('Failed to change audio output device. '
@@ -2307,45 +2312,37 @@ export default {
      * @private
      */
     _initDeviceList() {
-        JitsiMeetJS.mediaDevices.isDeviceListAvailable()
-            .then(isDeviceListAvailable => {
-                if (isDeviceListAvailable
-                        && JitsiMeetJS.mediaDevices.isDeviceChangeAvailable()) {
-                    JitsiMeetJS.mediaDevices.enumerateDevices(devices => {
-                        // Ugly way to synchronize real device IDs with local
-                        // storage and settings menu. This is a workaround until
-                        // getConstraints() method will be implemented
-                        // in browsers.
-                        const { dispatch } = APP.store;
+        const { mediaDevices } = JitsiMeetJS;
 
-                        if (this.localAudio) {
-                            dispatch(updateSettings({
-                                micDeviceId: this.localAudio.getDeviceId()
-                            }));
-                        }
+        if (mediaDevices.isDeviceListAvailable()
+                && mediaDevices.isDeviceChangeAvailable()) {
+            mediaDevices.enumerateDevices(devices => {
+                // Ugly way to synchronize real device IDs with local storage
+                // and settings menu. This is a workaround until
+                // getConstraints() method will be implemented in browsers.
+                const { dispatch } = APP.store;
 
-                        if (this.localVideo) {
-                            dispatch(updateSettings({
-                                cameraDeviceId: this.localVideo.getDeviceId()
-                            }));
-                        }
-
-                        mediaDeviceHelper.setCurrentMediaDevices(devices);
-                        APP.UI.onAvailableDevicesChanged(devices);
-                        APP.store.dispatch(updateDeviceList(devices));
-                    });
-
-                    this.deviceChangeListener = devices =>
-                        window.setTimeout(
-                            () => this._onDeviceListChanged(devices), 0);
-                    JitsiMeetJS.mediaDevices.addEventListener(
-                        JitsiMediaDevicesEvents.DEVICE_LIST_CHANGED,
-                        this.deviceChangeListener);
+                if (this.localAudio) {
+                    dispatch(updateSettings({
+                        micDeviceId: this.localAudio.getDeviceId()
+                    }));
                 }
-            })
-            .catch(error => {
-                logger.warn(`Error getting device list: ${error}`);
+                if (this.localVideo) {
+                    dispatch(updateSettings({
+                        cameraDeviceId: this.localVideo.getDeviceId()
+                    }));
+                }
+
+                APP.store.dispatch(updateDeviceList(devices));
+                APP.UI.onAvailableDevicesChanged(devices);
             });
+
+            this.deviceChangeListener = devices =>
+                window.setTimeout(() => this._onDeviceListChanged(devices), 0);
+            mediaDevices.addEventListener(
+                JitsiMediaDevicesEvents.DEVICE_LIST_CHANGED,
+                this.deviceChangeListener);
+        }
     },
 
     /**
@@ -2356,16 +2353,7 @@ export default {
      * @returns {Promise}
      */
     _onDeviceListChanged(devices) {
-        let currentDevices = mediaDeviceHelper.getCurrentMediaDevices();
-
-        // Event handler can be fired before direct
-        // enumerateDevices() call, so handle this situation here.
-        if (!currentDevices.audioinput
-            && !currentDevices.videoinput
-            && !currentDevices.audiooutput) {
-            mediaDeviceHelper.setCurrentMediaDevices(devices);
-            currentDevices = mediaDeviceHelper.getCurrentMediaDevices();
-        }
+        APP.store.dispatch(updateDeviceList(devices));
 
         const newDevices
             = mediaDeviceHelper.getNewMediaDevicesAfterDeviceListChanged(
@@ -2378,9 +2366,13 @@ export default {
         const videoWasMuted = this.isLocalVideoMuted();
 
         if (typeof newDevices.audiooutput !== 'undefined') {
-            // Just ignore any errors in catch block.
-            promises.push(setAudioOutputDeviceId(newDevices.audiooutput)
-                .catch());
+            const { dispatch } = APP.store;
+            const setAudioOutputPromise
+                = setAudioOutputDeviceId(newDevices.audiooutput, dispatch)
+                    .catch(); // Just ignore any errors in catch block.
+
+
+            promises.push(setAudioOutputPromise);
         }
 
         promises.push(
@@ -2414,7 +2406,6 @@ export default {
 
         return Promise.all(promises)
             .then(() => {
-                mediaDeviceHelper.setCurrentMediaDevices(devices);
                 APP.UI.onAvailableDevicesChanged(devices);
             });
     },
@@ -2424,7 +2415,7 @@ export default {
      */
     updateAudioIconEnabled() {
         const audioMediaDevices
-            = mediaDeviceHelper.getCurrentMediaDevices().audioinput;
+            = APP.store.getState()['features/base/devices'].audioInput;
         const audioDeviceCount
             = audioMediaDevices ? audioMediaDevices.length : 0;
 
@@ -2447,7 +2438,7 @@ export default {
      */
     updateVideoIconEnabled() {
         const videoMediaDevices
-            = mediaDeviceHelper.getCurrentMediaDevices().videoinput;
+            = APP.store.getState()['features/base/devices'].videoInput;
         const videoDeviceCount
             = videoMediaDevices ? videoMediaDevices.length : 0;
 
@@ -2478,9 +2469,11 @@ export default {
         APP.UI.removeLocalMedia();
 
         // Remove unnecessary event listeners from firing callbacks.
-        JitsiMeetJS.mediaDevices.removeEventListener(
-            JitsiMediaDevicesEvents.DEVICE_LIST_CHANGED,
-            this.deviceChangeListener);
+        if (this.deviceChangeListener) {
+            JitsiMeetJS.mediaDevices.removeEventListener(
+                JitsiMediaDevicesEvents.DEVICE_LIST_CHANGED,
+                this.deviceChangeListener);
+        }
 
         let requestFeedbackPromise;
 
@@ -2537,7 +2530,9 @@ export default {
         APP.store.dispatch(updateSettings({
             email: formattedEmail
         }));
-
+        APP.API.notifyEmailChanged(localId, {
+            email: formattedEmail
+        });
         sendData(commands.EMAIL, formattedEmail);
     },
 
