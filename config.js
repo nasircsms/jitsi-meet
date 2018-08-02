@@ -85,7 +85,7 @@ var config = {
     // startAudioOnly: false,
 
     // Every participant after the Nth will start audio muted.
-    // startAudioMuted: 10,
+    startAudioMuted: 5,
 
     // Start calls with audio muted. Unlike the option above, this one is only
     // applied locally. FIXME: having these 2 options is confusing.
@@ -125,7 +125,7 @@ var config = {
     disableSuspendVideo: true,
 
     // Every participant after the Nth will start video muted.
-    // startVideoMuted: 10,
+    startVideoMuted: 5,
 
     // Start calls with video muted. Unlike the option above, this one is only
     // applied locally. FIXME: having these 2 options is confusing.
@@ -144,7 +144,7 @@ var config = {
     // Desktop sharing
 
     // The ID of the jidesha extension for Chrome.
-    desktopSharingChromeExtId: null,
+    desktopSharingChromeExtId: 'ahbmdibekffnopdbmkcbeeleafjaninn',
 
     // Whether desktop sharing should be disabled on Chrome.
     desktopSharingChromeDisabled: false,
@@ -174,7 +174,7 @@ var config = {
     // fileRecordingsEnabled: false,
 
     // Whether to enable live streaming or not.
-    // liveStreamingEnabled: false,
+    liveStreamingEnabled: false,
 
     // Transcription (in interface_config,
     // subtitles and buttons can be configured)
@@ -225,7 +225,7 @@ var config = {
     useNicks: false,
 
     // Require users to always specify a display name.
-    // requireDisplayName: true,
+    requireDisplayName: true,
 
     // Whether to use a welcome page or not. In case it's false a random room
     // will be joined when no room is specified.
