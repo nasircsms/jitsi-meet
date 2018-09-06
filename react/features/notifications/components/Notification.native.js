@@ -76,7 +76,6 @@ class Notification extends AbstractNotification<Props> {
                         pointerEvents = 'box-none'
                         style = { styles.notificationContent }>
                         {
-                            // eslint-disable-next-line no-extra-parens
                             this._getDescription().map((line, index) => (
                                 <Text
                                     key = { index }
@@ -89,13 +88,11 @@ class Notification extends AbstractNotification<Props> {
                 </View>
                 {
                     isDismissAllowed
-                    && <View style = { styles.actionColumn }>
-                        <TouchableOpacity onPress = { this._onDismissed }>
-                            <Icon
-                                name = { 'close' }
-                                style = { styles.dismissIcon } />
-                        </TouchableOpacity>
-                    </View>
+                    && <TouchableOpacity onPress = { this._onDismissed }>
+                        <Icon
+                            name = { 'close' }
+                            style = { styles.dismissIcon } />
+                    </TouchableOpacity>
                 }
             </View>
         );

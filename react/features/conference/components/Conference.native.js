@@ -9,15 +9,20 @@ import { connect as reactReduxConnect } from 'react-redux';
 import { appNavigate } from '../../app';
 import { connect, disconnect } from '../../base/connection';
 import { DialogContainer } from '../../base/dialog';
-import { CalleeInfoContainer } from '../../invite';
 import { getParticipantCount } from '../../base/participants';
 import { Container, LoadingIndicator, TintedView } from '../../base/react';
+import {
+    isNarrowAspectRatio,
+    makeAspectRatioAware
+} from '../../base/responsive-ui';
 import { TestConnectionInfo } from '../../base/testing';
 import { createDesiredLocalTracks } from '../../base/tracks';
 import { ConferenceNotification } from '../../calendar-sync';
-import { Filmstrip } from '../../filmstrip';
+import { FILMSTRIP_SIZE, Filmstrip, isFilmstripVisible } from '../../filmstrip';
 import { LargeVideo } from '../../large-video';
+import { CalleeInfoContainer } from '../../invite';
 import { NotificationsContainer } from '../../notifications';
+import { Captions } from '../../subtitles';
 import { setToolboxVisible, Toolbox } from '../../toolbox';
 
 import styles from './styles';
@@ -30,12 +35,19 @@ type Props = {
     /**
      * The indicator which determines that we are still connecting to the
      * conference which includes establishing the XMPP connection and then
-     * joining the room. If truthy, then an activity/loading indicator will
-     * be rendered.
+     * joining the room. If truthy, then an activity/loading indicator will be
+     * rendered.
      *
      * @private
      */
     _connecting: boolean,
+
+    /**
+     * Set to {@code true} when the filmstrip is currently visible.
+     *
+     * @private
+     */
+    _filmstripVisible: boolean,
 
     /**
      * Current conference's full URL.
@@ -48,6 +60,7 @@ type Props = {
      * The handler which dispatches the (redux) action connect.
      *
      * @private
+     * @returns {void}
      */
     _onConnect: Function,
 
@@ -55,6 +68,7 @@ type Props = {
      * The handler which dispatches the (redux) action disconnect.
      *
      * @private
+     * @returns {void}
      */
     _onDisconnect: Function,
 
@@ -63,9 +77,9 @@ type Props = {
      * associated {@code Conference}.
      *
      * @private
-     * @returns {boolean} As the associated conference is unconditionally
-     * left and exiting the app while it renders a {@code Conference} is
-     * undesired, {@code true} is always returned.
+     * @returns {boolean} As the associated conference is unconditionally left
+     * and exiting the app while it renders a {@code Conference} is undesired,
+     * {@code true} is always returned.
      */
     _onHardwareBackPress: Function,
 
@@ -92,10 +106,13 @@ type Props = {
     _room: string,
 
     /**
-     * The handler which dispatches the (redux) action setToolboxVisible to
-     * show/hide the Toolbox.
+     * The handler which dispatches the (redux) action {@link setToolboxVisible}
+     * to show/hide the {@link Toolbox}.
      *
+     * @param {boolean} visible - {@code true} to show the {@code Toolbox} or
+     * {@code false} to hide it.
      * @private
+     * @returns {void}
      */
     _setToolboxVisible: Function,
 
@@ -268,9 +285,19 @@ class Conference extends Component<Props> {
                     pointerEvents = 'box-none'
                     style = { styles.toolboxAndFilmstripContainer }>
                     {/*
+                      * Notifications are rendered on the very top of other
+                      * components like subtitles, toolbox and filmstrip.
+                      */
+                        this._renderNotificationsContainer()
+                    }
+
+                    <Captions onPress = { this._onClick } />
+
+                    {/*
                       * The Toolbox is in a stacking layer bellow the Filmstrip.
                       */}
                     <Toolbox />
+
                     {/*
                       * The Filmstrip is in a stacking layer above the
                       * LargeVideo. The LargeVideo and the Filmstrip form what
@@ -281,13 +308,12 @@ class Conference extends Component<Props> {
                       */}
                     <Filmstrip />
                 </View>
+
                 <TestConnectionInfo />
 
                 {
                     this._renderConferenceNotification()
                 }
-
-                <NotificationsContainer />
 
                 {/*
                   * The dialogs are in the topmost stacking layers.
@@ -333,14 +359,43 @@ class Conference extends Component<Props> {
     /**
      * Renders the conference notification badge if the feature is enabled.
      *
-     * Note: If the calendar feature is disabled on a platform, then we don't
-     * have its components exported so an undefined check is necessary.
-     *
      * @private
      * @returns {React$Node}
      */
     _renderConferenceNotification() {
-        return ConferenceNotification ? <ConferenceNotification /> : undefined;
+        // XXX If the calendar feature is disabled on a platform, then we don't
+        // have its components exported so an undefined check is necessary.
+        return (
+            !this.props._reducedUI && ConferenceNotification
+                ? <ConferenceNotification />
+                : undefined);
+    }
+
+    /**
+     * Renders a container for notifications to be displayed by the
+     * base/notifications feature.
+     *
+     * @private
+     * @returns {React$Element}
+     */
+    _renderNotificationsContainer() {
+        const notificationsStyle = {};
+
+        // In the landscape mode (wide) there's problem with notifications being
+        // shadowed by the filmstrip rendered on the right. This makes the "x"
+        // button not clickable. In order to avoid that a margin of the
+        // filmstrip's size is added to the right.
+        //
+        // Pawel: after many attempts I failed to make notifications adjust to
+        // their contents width because of column and rows being used in the
+        // flex layout. The only option that seemed to limit the notification's
+        // size was explicit 'width' value which is not better than the margin
+        // added here.
+        if (this.props._filmstripVisible && !isNarrowAspectRatio(this)) {
+            notificationsStyle.marginRight = FILMSTRIP_SIZE;
+        }
+
+        return <NotificationsContainer style = { notificationsStyle } />;
     }
 }
 
@@ -362,8 +417,8 @@ function _mapDispatchToProps(dispatch) {
          * Dispatches actions to create the desired local tracks and for
          * connecting to the conference.
          *
-         * @returns {void}
          * @private
+         * @returns {void}
          */
         _onConnect() {
             dispatch(createDesiredLocalTracks());
@@ -373,8 +428,8 @@ function _mapDispatchToProps(dispatch) {
         /**
          * Dispatches an action disconnecting from the conference.
          *
-         * @returns {void}
          * @private
+         * @returns {void}
          */
         _onDisconnect() {
             dispatch(disconnect());
@@ -395,12 +450,12 @@ function _mapDispatchToProps(dispatch) {
         },
 
         /**
-         * Dispatches an action changing the visibility of the Toolbox.
+         * Dispatches an action changing the visibility of the {@link Toolbox}.
          *
-         * @param {boolean} visible - True to show the Toolbox or false to hide
-         * it.
-         * @returns {void}
+         * @param {boolean} visible - {@code true} to show the {@code Toolbox}
+         * or {@code false} to hide it.
          * @private
+         * @returns {void}
          */
         _setToolboxVisible(visible) {
             dispatch(setToolboxVisible(visible));
@@ -415,6 +470,7 @@ function _mapDispatchToProps(dispatch) {
  * @private
  * @returns {{
  *     _connecting: boolean,
+ *     _filmstripVisible: boolean,
  *     _locationURL: URL,
  *     _participantCount: number,
  *     _reducedUI: boolean,
@@ -458,6 +514,11 @@ function _mapStateToProps(state) {
          * @type {boolean}
          */
         _connecting: Boolean(connecting_),
+
+        /**
+         * Is {@code true} when the filmstrip is currently visible.
+         */
+        _filmstripVisible: isFilmstripVisible(state),
 
         /**
          * Current conference's full URL.
@@ -512,4 +573,4 @@ function _mapStateToProps(state) {
 
 // $FlowFixMe
 export default reactReduxConnect(_mapStateToProps, _mapDispatchToProps)(
-    Conference);
+    makeAspectRatioAware(Conference));

@@ -2,12 +2,17 @@
 
 import Button from '@atlaskit/button';
 import { FieldTextStateless } from '@atlaskit/field-text';
+import Tabs from '@atlaskit/tabs';
 import { AtlasKitThemeProvider } from '@atlaskit/theme';
 import React from 'react';
 import { connect } from 'react-redux';
 
+import { DialogContainer } from '../../base/dialog';
 import { translate } from '../../base/i18n';
-import { Watermarks } from '../../base/react';
+import { Platform, Watermarks } from '../../base/react';
+import { CalendarList } from '../../calendar-sync';
+import { RecentList } from '../../recent-list';
+import { SettingsButton, SETTINGS_TABS } from '../../settings';
 
 import { AbstractWelcomePage, _mapStateToProps } from './AbstractWelcomePage';
 
@@ -17,6 +22,15 @@ import { AbstractWelcomePage, _mapStateToProps } from './AbstractWelcomePage';
  * @extends AbstractWelcomePage
  */
 class WelcomePage extends AbstractWelcomePage {
+    /**
+     * Default values for {@code WelcomePage} component's properties.
+     *
+     * @static
+     */
+    static defaultProps = {
+        _room: ''
+    };
+
     /**
      * Initializes a new WelcomePage instance.
      *
@@ -146,6 +160,7 @@ class WelcomePage extends AbstractWelcomePage {
                                 { t('welcomepage.go') }
                             </Button>
                         </div>
+                        { this._renderTabs() }
                     </div>
                     { showAdditionalContent
                         ? <div
@@ -153,6 +168,9 @@ class WelcomePage extends AbstractWelcomePage {
                             ref = { this._setAdditionalContentRef } />
                         : null }
                 </div>
+                <AtlasKitThemeProvider mode = 'dark'>
+                    <DialogContainer />
+                </AtlasKitThemeProvider>
             </AtlasKitThemeProvider>
         );
     }
@@ -182,6 +200,47 @@ class WelcomePage extends AbstractWelcomePage {
      */
     _onRoomChange(event) {
         super._onRoomChange(event.target.value);
+    }
+
+    /**
+     * Renders tabs to show previous meetings and upcoming calendar events. The
+     * tabs are purposefully hidden on mobile browsers.
+     *
+     * @returns {ReactElement|null}
+     */
+    _renderTabs() {
+        const isMobileBrowser
+            = Platform.OS === 'android' || Platform.OS === 'ios';
+
+        if (isMobileBrowser) {
+            return null;
+        }
+
+        const { t } = this.props;
+
+        const tabs = [];
+
+        if (CalendarList) {
+            tabs.push({
+                label: t('welcomepage.calendar'),
+                content: <CalendarList />,
+                defaultSelected: true
+            });
+        }
+
+        tabs.push({
+            label: t('welcomepage.recentList'),
+            content: <RecentList />,
+            defaultSelected: !CalendarList
+        });
+
+        return (
+            <div className = 'tab-container' >
+                <div className = 'welcome-page-settings'>
+                    <SettingsButton defaultTab = { SETTINGS_TABS.CALENDAR } />
+                </div>
+                <Tabs tabs = { tabs } />
+            </div>);
     }
 
     /**
