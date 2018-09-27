@@ -18,23 +18,40 @@
     /**
      * The text color of the selected tab and hovered tabs.
      */
-    li.bcVmZW,
-    li.bcVmZW:hover,
-    li.kheoEp:hover {
+    .bVobOt,
+    .bVobOt:hover,
+    .ebveIl:hover {
         color: #172B4D;
     }
 
     /**
      * The color of the inactive tab text.
      */
-    li.kheoEp {
+    .ebveIl {
         color: #FFFFFF;
     }
 
     /**
      * The color of the underline of a selected tab.
      */
-    li>span.kByArU {
+    .kByArU {
         background-color: #172B4D;
+    }
+}
+
+.modal-dialog-form {
+    /**
+     * Update the dropdown trigger wrapper to make sure it looks click-able.
+     */
+    .gwEjuO {
+        cursor: pointer;
+    }
+
+    /**
+     * Override Atlaskit dropdown styling when in a modal because the dropdown
+     * backgrounds clash with the modal backgrounds.
+     */
+    .gBLqhw[data-role=droplistContent] {
+        border: 1px solid #455166;
     }
 }

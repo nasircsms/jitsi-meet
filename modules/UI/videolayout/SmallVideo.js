@@ -30,6 +30,7 @@ import {
 import {
     LAYOUTS,
     getCurrentLayout,
+    setTileView,
     shouldDisplayTileView
 } from '../../../react/features/video-layout';
 /* eslint-enable no-unused-vars */
@@ -159,53 +160,6 @@ SmallVideo.prototype.getId = function() {
  */
 SmallVideo.prototype.isVisible = function() {
     return this.$container.is(':visible');
-};
-
-/**
- * Enables / disables the device availability icons for this small video.
- * @param {enable} set to {true} to enable and {false} to disable
- */
-SmallVideo.prototype.enableDeviceAvailabilityIcons = function(enable) {
-    if (typeof enable === 'undefined') {
-        return;
-    }
-
-    this.deviceAvailabilityIconsEnabled = enable;
-};
-
-/**
- * Sets the device "non" availability icons.
- * @param devices the devices, which will be checked for availability
- */
-SmallVideo.prototype.setDeviceAvailabilityIcons = function(devices) {
-    if (!this.deviceAvailabilityIconsEnabled) {
-        return;
-    }
-
-    if (!this.container) {
-        return;
-    }
-
-    const noMic = this.$container.find('.noMic');
-    const noVideo = this.$container.find('.noVideo');
-
-    noMic.remove();
-    noVideo.remove();
-    if (!devices.audio) {
-        this.container.appendChild(
-            document.createElement('div')).setAttribute('class', 'noMic');
-    }
-
-    if (!devices.video) {
-        this.container.appendChild(
-            document.createElement('div')).setAttribute('class', 'noVideo');
-    }
-
-    if (!devices.audio && !devices.video) {
-        noMic.css('background-position', '75%');
-        noVideo.css('background-position', '25%');
-        noVideo.css('background-color', 'transparent');
-    }
 };
 
 /**

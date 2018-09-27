@@ -23,6 +23,7 @@
 #import <React/RCTLinkingManager.h>
 #import <React/RCTRootView.h>
 
+#import "Dropbox.h"
 #import "Invite+Private.h"
 #import "InviteController+Private.h"
 #import "JitsiMeetView+Private.h"
@@ -137,6 +138,8 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
     // Store launch options, will be used when we create the bridge.
     _launchOptions = [launchOptions copy];
 
+    [Dropbox setAppKey];
+
     return YES;
 }
 
@@ -190,6 +193,14 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
     return [RCTLinkingManager application:application
                      continueUserActivity:userActivity
                        restorationHandler:restorationHandler];
+}
+
++ (BOOL)application:(UIApplication *)app
+            openURL:(NSURL *)url
+            options:(NSDictionary<UIApplicationOpenURLOptionsKey,id> *)options {
+    return
+        [Dropbox application:app openURL:url options:options]
+            || [RCTLinkingManager application:app openURL:url options:options];
 }
 
 + (BOOL)application:(UIApplication *)application

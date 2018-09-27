@@ -158,6 +158,7 @@
             "title": "Enter a nickname in the box below",
             "popover": "Choose a nickname"
         },
+        "error": "Error: your message \"__originalText__\" was not sent. Reason: __error__",
         "messagebox": "Enter text..."
     },
     "settings": {
@@ -207,7 +208,9 @@
     "connectionindicator":
     {
         "header": "Connection data",
+        "connectedTo": "Connected to:",
         "bitrate": "Bitrate:",
+        "bridgeCount": "Server count: ",
         "packetloss": "Packet loss:",
         "resolution": "Resolution:",
         "framerate": "Frame rate:",
@@ -262,6 +265,7 @@
         "allow": "Allow",
         "confirm": "Confirm",
         "kickMessage": "Ouch! You have been kicked out of the meet!",
+        "kickTitle": "Kicked from meeting",
         "popupErrorTitle": "Pop-up blocked",
         "popupError": "Your browser is blocking pop-up windows from this site. Please enable pop-ups in your browser's security settings and try again.",
         "passwordErrorTitle": "Password Error",
@@ -430,7 +434,7 @@
     "share":
     {
         "mainText": "Click the following link to join the meeting:\n__roomUrl__",
-        "dialInfoText": "\n\n=====\n\nJust want to dial in on your phone?\n\nClick this link to see the dial in phone numbers for this meetings\n__dialInfoPageUrl__"
+        "dialInfoText": "\n\n=====\n\nJust want to dial in on your phone?\n\n__defaultDialInNumber__Click this link to see the dial in phone numbers for this meeting\n__dialInfoPageUrl__"
     },
     "connection":
     {
@@ -464,8 +468,7 @@
         "on": "Recording",
         "pending": "Preparing to record the meeting...",
         "rec": "REC",
-        "authDropboxText": "Upload your recording to Dropbox.",
-        "authDropboxCompletedText": "Your recording file will appear in your Dropbox shortly after the recording has finished.",
+        "authDropboxText": "Upload to Dropbox",
         "serviceName": "Recording service",
         "signOut": "Sign Out",
         "signIn": "sign in",
@@ -647,6 +650,8 @@
     },
     "calendarSync": {
         "addMeetingURL": "Add a meeting link",
+        "confirmAddLink": "Do you want to add a Jitsi link to this event?",
+        "confirmAddLinkTitle": "Calendar",
         "join": "Join",
         "joinTooltip": "Join the meeting",
         "nextMeeting": "next meeting",
