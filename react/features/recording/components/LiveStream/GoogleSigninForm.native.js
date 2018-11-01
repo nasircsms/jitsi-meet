@@ -1,7 +1,7 @@
 // @flow
 
 import React, { Component } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { connect } from 'react-redux';
 
 import { translate } from '../../../base/i18n';
@@ -24,12 +24,6 @@ const logger = require('jitsi-meet-logger').getLogger(__filename);
 type Props = {
 
     /**
-     * The ID for the Google client application used for making stream key
-     * related requests.
-     */
-    clientId: string,
-
-    /**
      * The Redux dispatch Function.
      */
     dispatch: Function,
@@ -43,12 +37,6 @@ type Props = {
      * The recently received Google response.
      */
     googleResponse: Object,
-
-    /**
-     * The ID for the Google client application used for making stream key
-     * related requests on iOS.
-     */
-    iOSClientId: string,
 
     /**
      * A callback to be invoked when an authenticated user changes, so
@@ -86,22 +74,23 @@ class GoogleSigninForm extends Component<Props> {
      * @inheritdoc
      */
     componentDidMount() {
-        if (!this.props.clientId) {
-            // NOTE: This is a developer error message, not intended for the
-            // user to see.
-            logger.error('Missing clientID');
-            this._setApiState(GOOGLE_API_STATES.NOT_AVAILABLE);
+        if (Platform.OS === 'ios') {
+            const majorVersionIOS = parseInt(Platform.Version, 10);
 
-            return;
+            if (majorVersionIOS <= 10) {
+                // Disable it on iOS 10 and earlier, since it doesn't work
+                // properly.
+                this._setApiState(GOOGLE_API_STATES.NOT_AVAILABLE);
+
+                return;
+            }
         }
 
         googleApi.hasPlayServices()
             .then(() => {
                 googleApi.configure({
-                    iosClientId: this.props.iOSClientId,
                     offlineAccess: false,
-                    scopes: [ GOOGLE_SCOPE_YOUTUBE ],
-                    webClientId: this.props.clientId
+                    scopes: [ GOOGLE_SCOPE_YOUTUBE ]
                 });
 
                 googleApi.signInSilently().then(response => {

@@ -13,15 +13,12 @@ import { getLocalizedDateFormatter, translate } from '../../base/i18n';
 import { NavigateSectionList } from '../../base/react';
 
 import { refreshCalendar, openUpdateCalendarEventDialog } from '../actions';
-
 import { isCalendarEnabled } from '../functions';
 
-import AddMeetingUrlButton from './AddMeetingUrlButton';
-import JoinButton from './JoinButton';
 
 /**
  * The type of the React {@code Component} props of
- * {@link BaseCalendarList}.
+ * {@link CalendarListContent}.
  */
 type Props = {
 
@@ -43,7 +40,7 @@ type Props = {
     /**
      *
      */
-    renderListEmptyComponent: Function,
+    listEmptyComponent: React$Node,
 
     /**
      * The translate function.
@@ -54,7 +51,7 @@ type Props = {
 /**
  * Component to display a list of events from a connected calendar.
  */
-class BaseCalendarList extends Component<Props> {
+class CalendarListContent extends Component<Props> {
     /**
      * Default values for the component's props.
      */
@@ -63,26 +60,7 @@ class BaseCalendarList extends Component<Props> {
     };
 
     /**
-     * Public API method for {@code Component}s rendered in
-     * {@link AbstractPagedList}. When invoked, refreshes the calendar entries
-     * in the app.
-     *
-     * Note: It is a static method as the {@code Component} may not be
-     * initialized yet when the UI invokes refresh (e.g. {@link TabBarIOS} tab
-     * change).
-     *
-     * @param {Function} dispatch - The Redux dispatch function.
-     * @param {boolean} isInteractive - If true this refresh was caused by
-     * direct user interaction, false otherwise.
-     * @public
-     * @returns {void}
-     */
-    static refresh(dispatch, isInteractive) {
-        dispatch(refreshCalendar(false, isInteractive));
-    }
-
-    /**
-     * Initializes a new {@code BaseCalendarList} instance.
+     * Initializes a new {@code CalendarListContent} instance.
      *
      * @inheritdoc
      */
@@ -90,7 +68,6 @@ class BaseCalendarList extends Component<Props> {
         super(props);
 
         // Bind event handlers so they are only bound once per instance.
-        this._onJoinPress = this._onJoinPress.bind(this);
         this._onPress = this._onPress.bind(this);
         this._onRefresh = this._onRefresh.bind(this);
         this._onSecondaryAction = this._onSecondaryAction.bind(this);
@@ -117,7 +94,7 @@ class BaseCalendarList extends Component<Props> {
      * @inheritdoc
      */
     render() {
-        const { disabled, renderListEmptyComponent } = this.props;
+        const { disabled, listEmptyComponent } = this.props;
 
         return (
             <NavigateSectionList
@@ -126,25 +103,9 @@ class BaseCalendarList extends Component<Props> {
                 onRefresh = { this._onRefresh }
                 onSecondaryAction = { this._onSecondaryAction }
                 renderListEmptyComponent
-                    = { renderListEmptyComponent }
+                    = { listEmptyComponent }
                 sections = { this._toDisplayableList() } />
         );
-    }
-
-    _onJoinPress: (Object, string) => Function;
-
-    /**
-     * Handles the list's navigate action.
-     *
-     * @private
-     * @param {Object} event - The click event.
-     * @param {string} url - The url string to navigate to.
-     * @returns {void}
-     */
-    _onJoinPress(event, url) {
-        event.stopPropagation();
-
-        this._onPress(url, 'calendar.meeting.join');
     }
 
     _onPress: (string, string) => Function;
@@ -217,13 +178,6 @@ class BaseCalendarList extends Component<Props> {
      */
     _toDisplayableItem(event) {
         return {
-            elementAfter: event.url
-                ? <JoinButton
-                    onPress = { this._onJoinPress }
-                    url = { event.url } />
-                : (<AddMeetingUrlButton
-                    calendarId = { event.calendarId }
-                    eventId = { event.id } />),
             id: event.id,
             key: `${event.id}-${event.startDate}`,
             lines: [
@@ -318,5 +272,5 @@ function _mapStateToProps(state: Object) {
 }
 
 export default isCalendarEnabled()
-    ? translate(connect(_mapStateToProps)(BaseCalendarList))
+    ? translate(connect(_mapStateToProps)(CalendarListContent))
     : undefined;
