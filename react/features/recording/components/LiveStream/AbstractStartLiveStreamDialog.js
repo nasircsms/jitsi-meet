@@ -1,12 +1,11 @@
 // @flow
 
-import React, { Component } from 'react';
+import { Component } from 'react';
 
 import {
     createRecordingDialogEvent,
     sendAnalytics
 } from '../../../analytics';
-import { Dialog } from '../../../base/dialog';
 import { JitsiRecordingConstants } from '../../../base/lib-jitsi-meet';
 
 /**
@@ -140,27 +139,6 @@ export default class AbstractStartLiveStreamDialog<P: Props>
         this._isMounted = false;
     }
 
-    /**
-     * Implements {@code Component}'s render.
-     *
-     * @inheritdoc
-     */
-    render() {
-        return (
-            <Dialog
-                cancelTitleKey = 'dialog.Cancel'
-                okTitleKey = 'dialog.startLiveStreaming'
-                onCancel = { this._onCancel }
-                onSubmit = { this._onSubmit }
-                titleKey = 'liveStreaming.start'
-                width = { 'small' }>
-                {
-                    this._renderDialogContent()
-                }
-            </Dialog>
-        );
-    }
-
     _onCancel: () => boolean;
 
     /**
@@ -194,7 +172,6 @@ export default class AbstractStartLiveStreamDialog<P: Props>
      * display of the entered YouTube stream key.
      *
      * @param {string} streamKey - The stream key entered in the field.
-     * changed text.
      * @private
      * @returns {void}
      */
@@ -217,7 +194,8 @@ export default class AbstractStartLiveStreamDialog<P: Props>
      */
     _onSubmit() {
         const { broadcasts, selectedBoundStreamID } = this.state;
-        const key = this.state.streamKey || this.props._streamKey;
+        const key
+            = (this.state.streamKey || this.props._streamKey || '').trim();
 
         if (!key) {
             return false;
@@ -258,13 +236,6 @@ export default class AbstractStartLiveStreamDialog<P: Props>
             this.setState(newState);
         }
     }
-
-    /**
-     * Renders the platform specific dialog content.
-     *
-     * @returns {React$Component}
-     */
-    _renderDialogContent: () => React$Component<*>
 }
 
 /**
