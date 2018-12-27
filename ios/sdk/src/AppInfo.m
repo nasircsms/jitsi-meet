@@ -58,7 +58,7 @@ RCT_EXPORT_MODULE();
     }
 
     return @{
-        @"calendarEnabled": @(NO),
+        @"calendarEnabled": [NSNumber numberWithBool:NO],
         @"name": name,
         @"sdkBundlePath": sdkBundlePath,
         @"version": version
