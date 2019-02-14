@@ -80,15 +80,6 @@
             float: left;
             pointer-events: all;
         }
-
-        /**
-         * Need to overwrite the background for the top toolbar dark theme div
-         * wrapper needed before we're able to move all top toolbar indicators
-         * creation to react.
-         */
-        .sc-ifAKCX {
-            background: none;
-        }
     }
 
     &__toolbar {
@@ -505,18 +496,22 @@
     display:none !important;
 }
 
+#dominantSpeakerAvatarContainer,
 #dominantSpeakerAvatar,
 .dynamic-shadow {
     width: 200px;
     height: 200px;
 }
 
-#dominantSpeakerAvatar {
+#dominantSpeakerAvatarContainer {
     top: 50px;
     margin: auto;
     position: relative;
     border-radius: 100px;
+    overflow: hidden;
     visibility: inherit;
+}
+#dominantSpeakerAvatar {
     background-color: #000000;
 }
 

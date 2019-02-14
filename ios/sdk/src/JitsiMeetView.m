@@ -87,6 +87,8 @@ void registerFatalErrorHandler() {
 
 @dynamic pictureInPictureEnabled;
 
+static NSString *_conferenceActivityType;
+
 static RCTBridgeWrapper *bridgeWrapper;
 
 /**
@@ -117,44 +119,16 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
   continueUserActivity:(NSUserActivity *)userActivity
     restorationHandler:(void (^)(NSArray *restorableObjects))restorationHandler
 {
-    NSString *activityType = userActivity.activityType;
-
     // XXX At least twice we received bug reports about malfunctioning loadURL
     // in the Jitsi Meet SDK while the Jitsi Meet app seemed to functioning as
     // expected in our testing. But that was to be expected because the app does
     // not exercise loadURL. In order to increase the test coverage of loadURL,
     // channel Universal linking through loadURL.
-    if ([activityType isEqualToString:NSUserActivityTypeBrowsingWeb]
-            && [self loadURLInViews:userActivity.webpageURL]) {
+
+    id url = [self conferenceURLFromUserActivity:userActivity];
+
+    if (url && [self loadURLObjectInViews:url]) {
         return YES;
-    }
-
-    // Check for a CallKit intent.
-    if ([activityType isEqualToString:@"INStartAudioCallIntent"]
-            || [activityType isEqualToString:@"INStartVideoCallIntent"]) {
-        INIntent *intent = userActivity.interaction.intent;
-        NSArray<INPerson *> *contacts;
-        NSString *url;
-        BOOL startAudioOnly = NO;
-
-        if ([intent isKindOfClass:[INStartAudioCallIntent class]]) {
-            contacts = ((INStartAudioCallIntent *) intent).contacts;
-            startAudioOnly = YES;
-        } else if ([intent isKindOfClass:[INStartVideoCallIntent class]]) {
-            contacts = ((INStartVideoCallIntent *) intent).contacts;
-        }
-
-        if (contacts && (url = contacts.firstObject.personHandle.value)) {
-            // Load the URL contained in the handle.
-            [self loadURLObjectInViews:@{
-                @"config": @{
-                    @"startAudioOnly": @(startAudioOnly)
-                },
-                @"url": url
-            }];
-
-            return YES;
-        }
     }
 
     return [RCTLinkingManager application:application
@@ -243,12 +217,10 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
         props[@"defaultURL"] = [self.defaultURL absoluteString];
     }
 
+    props[@"colorScheme"] = self.colorScheme;
     props[@"externalAPIScope"] = externalAPIScope;
     props[@"pictureInPictureEnabled"] = @(self.pictureInPictureEnabled);
     props[@"welcomePageEnabled"] = @(self.welcomePageEnabled);
-
-    props[@"addPeopleEnabled"] = @(_inviteController.addPeopleEnabled);
-    props[@"dialOutEnabled"] = @(_inviteController.dialOutEnabled);
 
     // XXX If urlObject is nil, then it must appear as undefined in the
     // JavaScript source code so that we check the launchOptions there.
@@ -296,6 +268,16 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
  */
 - (void)loadURLString:(NSString *)urlString {
     [self loadURLObject:urlString ? @{ @"url": urlString } : nil];
+}
+
+#pragma conferenceActivityType getter / setter
+
++ (NSString *)conferenceActivityType {
+    return _conferenceActivityType;
+}
+
++ (void) setConferenceActivityType:(NSString *)conferenceActivityType {
+    _conferenceActivityType = conferenceActivityType;
 }
 
 #pragma pictureInPictureEnabled getter / setter
@@ -352,6 +334,45 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
     return handled;
 }
 
++ (NSDictionary *)conferenceURLFromUserActivity:(NSUserActivity *)userActivity {
+    NSString *activityType = userActivity.activityType;
+
+    if ([activityType isEqualToString:NSUserActivityTypeBrowsingWeb]) {
+        // App was started by opening a URL in the browser
+        return @{ @"url" : userActivity.webpageURL.absoluteString };
+    } else if ([activityType isEqualToString:@"INStartAudioCallIntent"]
+               || [activityType isEqualToString:@"INStartVideoCallIntent"]) {
+        // App was started by a CallKit Intent
+        INIntent *intent = userActivity.interaction.intent;
+        NSArray<INPerson *> *contacts;
+        NSString *url;
+        BOOL startAudioOnly = NO;
+
+        if ([intent isKindOfClass:[INStartAudioCallIntent class]]) {
+            contacts = ((INStartAudioCallIntent *) intent).contacts;
+            startAudioOnly = YES;
+        } else if ([intent isKindOfClass:[INStartVideoCallIntent class]]) {
+            contacts = ((INStartVideoCallIntent *) intent).contacts;
+        }
+
+        if (contacts && (url = contacts.firstObject.personHandle.value)) {
+            return @{
+                @"config": @{@"startAudioOnly":@(startAudioOnly)},
+                @"url": url
+                };
+        }
+    } else if (_conferenceActivityType && [activityType isEqualToString:_conferenceActivityType]) {
+        // App was started by continuing a registered NSUserActivity (SiriKit, Handoff, ...)
+        NSString *url;
+
+        if ((url = userActivity.userInfo[@"url"])) {
+            return @{ @"url" : url };
+        }
+    }
+
+    return nil;
+}
+
 + (instancetype)viewForExternalAPIScope:(NSString *)externalAPIScope {
     return [views objectForKey:externalAPIScope];
 }
@@ -380,10 +401,6 @@ static NSMapTable<NSString *, JitsiMeetView *> *views;
     // Hook this JitsiMeetView into ExternalAPI.
     externalAPIScope = [NSUUID UUID].UUIDString;
     [views setObject:self forKey:externalAPIScope];
-
-    _inviteController
-        = [[JMInviteController alloc] initWithExternalAPIScope:externalAPIScope
-                                                 bridgeWrapper:bridgeWrapper];
 
     // Set a background color which is in accord with the JavaScript and Android
     // parts of the application and causes less perceived visual flicker than

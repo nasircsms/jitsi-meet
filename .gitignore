@@ -36,6 +36,7 @@ xcuserdata
 DerivedData
 *.hmap
 *.ipa
+*.dSYM.zip
 *.xcuserstate
 project.xcworkspace
 
@@ -77,3 +78,6 @@ buck-out/
 .jshintignore
 .jshintrc
 
+# VSCode files
+android/.project
+android/.settings/org.eclipse.buildship.core.prefs
