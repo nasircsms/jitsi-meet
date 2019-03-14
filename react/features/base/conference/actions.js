@@ -26,6 +26,7 @@ import {
     CONFERENCE_FAILED,
     CONFERENCE_JOINED,
     CONFERENCE_LEFT,
+    CONFERENCE_SUBJECT_CHANGED,
     CONFERENCE_WILL_JOIN,
     CONFERENCE_WILL_LEAVE,
     DATA_CHANNEL_OPENED,
@@ -41,6 +42,7 @@ import {
     SET_PASSWORD_FAILED,
     SET_PREFERRED_RECEIVER_VIDEO_QUALITY,
     SET_ROOM,
+    SET_PENDING_SUBJECT_CHANGE,
     SET_START_MUTED_POLICY
 } from './actionTypes';
 import {
@@ -268,6 +270,22 @@ export function conferenceLeft(conference: Object) {
     return {
         type: CONFERENCE_LEFT,
         conference
+    };
+}
+
+/**
+ * Signals that the conference subject has been changed.
+ *
+ * @param {string} subject - The new subject.
+ * @returns {{
+ *     type: CONFERENCE_SUBJECT_CHANGED,
+ *     subject: string
+ * }}
+ */
+export function conferenceSubjectChanged(subject: string) {
+    return {
+        type: CONFERENCE_SUBJECT_CHANGED,
+        subject
     };
 }
 
@@ -726,5 +744,30 @@ export function toggleAudioOnly() {
         const { audioOnly } = getState()['features/base/conference'];
 
         return dispatch(setAudioOnly(!audioOnly, true));
+    };
+}
+
+/**
+ * Changing conference subject.
+ *
+ * @param {string} subject - The new subject.
+ * @returns {void}
+ */
+export function setSubject(subject: string = '') {
+    return (dispatch: Dispatch<*>, getState: Function) => {
+        const { conference } = getState()['features/base/conference'];
+
+        if (conference) {
+            dispatch({
+                type: SET_PENDING_SUBJECT_CHANGE,
+                subject: undefined
+            });
+            conference.setSubject(subject);
+        } else {
+            dispatch({
+                type: SET_PENDING_SUBJECT_CHANGE,
+                subject
+            });
+        }
     };
 }

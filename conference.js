@@ -38,6 +38,7 @@ import {
     conferenceFailed,
     conferenceJoined,
     conferenceLeft,
+    conferenceSubjectChanged,
     conferenceWillJoin,
     conferenceWillLeave,
     dataChannelOpened,
@@ -1325,7 +1326,14 @@ export default {
         this.isSharingScreen = newStream && newStream.videoType === 'desktop';
 
         if (wasSharingScreen !== this.isSharingScreen) {
-            APP.API.notifyScreenSharingStatusChanged(this.isSharingScreen);
+            const details = {};
+
+            if (this.isSharingScreen) {
+                details.sourceType = newStream.sourceType;
+            }
+
+            APP.API.notifyScreenSharingStatusChanged(
+                this.isSharingScreen, details);
         }
     },
 
@@ -1825,6 +1833,8 @@ export default {
         room.on(JitsiConferenceEvents.TALK_WHILE_MUTED, () => {
             APP.UI.showToolbar(6000);
         });
+        room.on(JitsiConferenceEvents.SUBJECT_CHANGED,
+            subject => APP.store.dispatch(conferenceSubjectChanged(subject)));
 
         room.on(
             JitsiConferenceEvents.LAST_N_ENDPOINTS_CHANGED,
@@ -2312,7 +2322,8 @@ export default {
                         }));
                     }
 
-                    if (this.localVideo) {
+                    if (this.localVideo
+                        && this.localVideo.videoType === 'camera') {
                         dispatch(updateSettings({
                             cameraDeviceId: this.localVideo.getDeviceId()
                         }));
@@ -2688,6 +2699,13 @@ export default {
     onProxyConnectionEvent(event) {
         if (!this._proxyConnection) {
             this._proxyConnection = new JitsiMeetJS.ProxyConnectionService({
+
+                /**
+                 * Pass the {@code JitsiConnection} instance which will be used
+                 * to fetch TURN credentials.
+                 */
+                jitsiConnection: APP.connection,
+
                 /**
                  * The proxy connection feature is currently tailored towards
                  * taking a proxied video stream and showing it as a local

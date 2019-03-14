@@ -15,6 +15,7 @@ import { translate } from '../../base/i18n';
 
 import { cancelFeedback, submitFeedback } from '../actions';
 
+declare var APP: Object;
 declare var interfaceConfig: Object;
 
 const scoreAnimationClass
@@ -172,6 +173,9 @@ class FeedbackDialog extends Component<Props, State> {
      */
     componentDidMount() {
         sendAnalytics(createFeedbackOpenEvent());
+        if (typeof APP !== 'undefined') {
+            APP.API.notifyFeedbackPromptDisplayed();
+        }
     }
 
     /**
@@ -224,7 +228,7 @@ class FeedbackDialog extends Component<Props, State> {
 
         return (
             <Dialog
-                okTitleKey = 'dialog.Submit'
+                okKey = 'dialog.Submit'
                 onCancel = { this._onCancel }
                 onSubmit = { this._onSubmit }
                 titleKey = 'feedback.rateExperience'>

@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 
 import { setPassword } from '../../../base/conference';
 import { getInviteURL } from '../../../base/connection';
+import { Dialog } from '../../../base/dialog';
 import { translate } from '../../../base/i18n';
 import { isLocalParticipantModerator } from '../../../base/participants';
 
@@ -67,6 +68,11 @@ type Props = {
     dispatch: Dispatch<*>,
 
     /**
+     * Whether is Atlaskit InlineDialog or a normal dialog.
+     */
+    isInlineDialog: boolean,
+
+    /**
      * The current known URL for a live stream in progress.
      */
     liveStreamViewURL: string,
@@ -121,9 +127,7 @@ class InfoDialog extends Component<Props, State> {
         let phoneNumber = state.phoneNumber;
 
         if (!state.phoneNumber && props.dialIn.numbers) {
-            const { defaultCountry, numbers } = props.dialIn;
-
-            phoneNumber = _getDefaultPhoneNumber(numbers, defaultCountry);
+            phoneNumber = _getDefaultPhoneNumber(props.dialIn);
         }
 
         return {
@@ -157,11 +161,9 @@ class InfoDialog extends Component<Props, State> {
     constructor(props: Props) {
         super(props);
 
-        const { defaultCountry, numbers } = props.dialIn;
-
-        if (numbers) {
+        if (props.dialIn && props.dialIn.numbers) {
             this.state.phoneNumber
-                = _getDefaultPhoneNumber(numbers, defaultCountry);
+                = _getDefaultPhoneNumber(props.dialIn.numbers);
         }
 
         /**
@@ -191,9 +193,14 @@ class InfoDialog extends Component<Props, State> {
      * @returns {ReactElement}
      */
     render() {
-        const { liveStreamViewURL, onMouseOver, t } = this.props;
+        const {
+            isInlineDialog,
+            liveStreamViewURL,
+            onMouseOver,
+            t
+        } = this.props;
 
-        return (
+        const inlineDialog = (
             <div
                 className = 'info-dialog'
                 onMouseOver = { onMouseOver } >
@@ -249,6 +256,20 @@ class InfoDialog extends Component<Props, State> {
                     tabIndex = '-1'
                     value = { this._getTextToCopy() } />
             </div>
+        );
+
+        if (isInlineDialog) {
+            return inlineDialog;
+        }
+
+        return (
+            <Dialog
+                cancelTitleKey = 'dialog.close'
+                submitDisabled = { true }
+                titleKey = 'info.label'
+                width = 'small'>
+                { inlineDialog }
+            </Dialog>
         );
     }
 

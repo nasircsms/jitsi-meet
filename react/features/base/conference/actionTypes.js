@@ -43,6 +43,16 @@ export const CONFERENCE_JOINED = Symbol('CONFERENCE_JOINED');
 export const CONFERENCE_LEFT = Symbol('CONFERENCE_LEFT');
 
 /**
+ * The type of (redux) action, which indicates conference subject changes.
+ *
+ * {
+ *     type: CONFERENCE_SUBJECT_CHANGED
+ *     subject: string
+ * }
+ */
+export const CONFERENCE_SUBJECT_CHANGED = Symbol('CONFERENCE_SUBJECT_CHANGED');
+
+/**
  * The type of (redux) action which signals that a specific conference will be
  * joined.
  *
@@ -188,6 +198,16 @@ export const SET_PASSWORD = Symbol('SET_PASSWORD');
  * }
  */
 export const SET_PASSWORD_FAILED = Symbol('SET_PASSWORD_FAILED');
+
+/**
+ * The type of (redux) action which signals for pending subject changes.
+ *
+ * {
+ *     type: SET_PENDING_SUBJECT_CHANGE,
+ *     subject: string
+ * }
+ */
+export const SET_PENDING_SUBJECT_CHANGE = Symbol('SET_PENDING_SUBJECT_CHANGE');
 
 /**
  * The type of (redux) action which sets the preferred maximum video height that

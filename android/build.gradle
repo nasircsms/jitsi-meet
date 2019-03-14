@@ -12,7 +12,7 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath 'com.android.tools.build:gradle:3.3.2'
         classpath 'com.google.gms:google-services:4.2.0'
         classpath 'io.fabric.tools:gradle:1.27.0'
 
@@ -113,15 +113,6 @@ allprojects {
                 }
             }
 
-            task androidJavadocs(type: Javadoc) {
-                source = android.sourceSets.main.java.source
-                classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
-                failOnError false
-            }
-            task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
-                classifier = 'javadoc'
-                from androidJavadocs.destinationDir
-            }
             task androidSourcesJar(type: Jar) {
                 classifier = 'sources'
                 from android.sourceSets.main.java.source
@@ -137,7 +128,6 @@ allprojects {
                         extension "aar"
                     }
                     artifact(androidSourcesJar)
-                    artifact(androidJavadocsJar)
                     pom.withXml {
                         def pomXml = asNode()
                         pomXml.appendNode('name', project.name)

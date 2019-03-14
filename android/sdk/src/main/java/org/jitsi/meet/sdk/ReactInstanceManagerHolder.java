@@ -24,6 +24,7 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.common.LifecycleState;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,6 +54,7 @@ class ReactInstanceManagerHolder {
                 new PictureInPictureModule(reactContext),
                 new ProximityModule(reactContext),
                 new WiFiStatsModule(reactContext),
+                new org.jitsi.meet.sdk.analytics.AmplitudeModule(reactContext),
                 new org.jitsi.meet.sdk.dropbox.Dropbox(reactContext),
                 new org.jitsi.meet.sdk.net.NAT64AddrInfoModule(reactContext)));
 
@@ -70,7 +72,7 @@ class ReactInstanceManagerHolder {
      * @param eventName {@code String} containing the event name.
      * @param data {@code Object} optional ancillary data for the event.
      */
-    static boolean emitEvent(
+    static void emitEvent(
             String eventName,
             @Nullable Object data) {
         ReactInstanceManager reactInstanceManager
@@ -80,15 +82,12 @@ class ReactInstanceManagerHolder {
             ReactContext reactContext
                 = reactInstanceManager.getCurrentReactContext();
 
-            return
-                reactContext != null
-                    && ReactContextUtils.emitEvent(
-                        reactContext,
-                        eventName,
-                        data);
+            if (reactContext != null) {
+                reactContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit(eventName, data);
+            }
         }
-
-        return false;
     }
 
     /**
