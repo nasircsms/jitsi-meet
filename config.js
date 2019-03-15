@@ -34,7 +34,7 @@ var config = {
         // call_control: 'callcontrol.jitsi-meet.example.com',
 
         // Focus component domain. Defaults to focus.<domain>.
-        focus: 'focus.meet.jit.si',
+        focus: 'focus.meet.jit.si'
     },
 
     // BOSH URL. FIXME: use XEP-0156 to discover it.
