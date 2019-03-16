@@ -25,15 +25,18 @@ var interfaceConfig = {
     SHOW_POWERED_BY: false,
     SHOW_DEEP_LINKING_IMAGE: false,
     GENERATE_ROOMNAMES_ON_WELCOME_PAGE: true,
-    DISPLAY_WELCOME_PAGE_CONTENT: true,
-    APP_NAME: "Rocket.Chat Jitsi Meet",
-    NATIVE_APP_NAME: 'Jitsi Meet',
-    LANG_DETECTION: true,    // Allow i18n to detect the system language
+    DISPLAY_WELCOME_PAGE_CONTENT: false,
+    APP_NAME: 'Rocket.Chat',
+    NATIVE_APP_NAME: 'Rocket.Chat',
+    PROVIDER_NAME: 'Rocket.Chat',
+    // Allow i18n to detect the system language
+    LANG_DETECTION: true,
     INVITATION_POWERED_BY: false,
+
     /**
      * If we should show authentication block in profile
      */
-    AUTHENTICATION_ENABLE: true,
+    AUTHENTICATION_ENABLE: false,
 
     /**
      * The name of the toolbar buttons to display in the toolbar. If present,
@@ -44,7 +47,7 @@ var interfaceConfig = {
      */
     TOOLBAR_BUTTONS: [
         'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-        'fodeviceselection', 'hangup', 'profile', 'info', 'chat', 'recording',
+        'fodeviceselection', 'hangup', 'profile', 'info', 'recording',
         'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
         'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
         'tileview'
@@ -123,7 +126,7 @@ var interfaceConfig = {
      * If indicated some of the error dialogs may point to the support URL for
      * help.
      */
-    SUPPORT_URL: 'https://github.com/jitsi/jitsi-meet/issues/new',
+    SUPPORT_URL: 'https://rocket.chat/docs/',
 
     /**
      * Whether the connection indicator icon should hide itself based on
@@ -152,11 +155,6 @@ var interfaceConfig = {
     CONNECTION_INDICATOR_DISABLED: false,
 
     /**
-     * The name of the application connected to the "Add people" search service.
-     */
-    // ADD_PEOPLE_APP_NAME: "",
-
-    /**
      * If true, hides the video quality label indicating the resolution status
      * of the current large video.
      *
@@ -180,12 +178,12 @@ var interfaceConfig = {
     /**
      * Specify custom URL for downloading android mobile app.
      */
-    // MOBILE_DOWNLOAD_LINK_ANDROID: 'https://play.google.com/store/apps/details?id=org.jitsi.meet',
+    MOBILE_DOWNLOAD_LINK_ANDROID: 'https://play.google.com/store/apps/details?id=chat.rocket.android',
 
     /**
      * Specify URL for downloading ios mobile app.
      */
-    // MOBILE_DOWNLOAD_LINK_IOS: 'https://itunes.apple.com/us/app/jitsi-meet/id1165103905',
+    MOBILE_DOWNLOAD_LINK_IOS: 'https://itunes.apple.com/us/app/rocket-chat/id1148741252',
 
     /**
      * Specify mobile app scheme for opening the app from the mobile browser.
