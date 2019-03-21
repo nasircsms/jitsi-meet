@@ -33,19 +33,6 @@ dependencies {
 }
 ```
 
-Also, enable 32bit mode for react-native, since the react-native version we currently depend on only supports 32bit apps. (If you have a 64bit device, it will not run unless this setting it set).
-
-```gradle
-android {
-    ...
-    defaultConfig {
-        ndk {
-            abiFilters "armeabi-v7a", "x86"
-        }
-    }
-    ...
-```
-
 ### Build and use your own SDK artifacts/binaries
 
 <details>
@@ -68,10 +55,6 @@ At the time of writing, there are two packages pulled in in binary format.
 To copy React Native to your local Maven repository, you can simply copy part of the directory structure that was pulled in by NPM:
 
     $ cp -r ../node_modules/react-native/android/com /tmp/repo/
-
-In the same way, copy the JavaScriptCore dependency:
-
-    $ cp -r ../node_modules/jsc-android/dist/org /tmp/repo/
 
 Alternatively, you can use the scripts located in the android/scripts directory to publish these dependencies to your Maven repo.
 
