@@ -1,10 +1,93 @@
 import JitsiMeetJS from '../lib-jitsi-meet';
+import { updateSettings } from '../settings';
 
 import {
+    ADD_PENDING_DEVICE_REQUEST,
+    REMOVE_PENDING_DEVICE_REQUESTS,
     SET_AUDIO_INPUT_DEVICE,
     SET_VIDEO_INPUT_DEVICE,
     UPDATE_DEVICE_LIST
 } from './actionTypes';
+import {
+    areDeviceLabelsInitialized,
+    getDeviceIdByLabel,
+    getDevicesFromURL
+} from './functions';
+
+/**
+ * Adds a pending device request.
+ *
+ * @param {Object} request - The request to be added.
+ * @returns {{
+ *      type: ADD_PENDING_DEVICE_REQUEST,
+ *      request: Object
+ * }}
+ */
+export function addPendingDeviceRequest(request) {
+    return {
+        type: ADD_PENDING_DEVICE_REQUEST,
+        request
+    };
+}
+
+/**
+ * Configures the initial A/V devices before the conference has started.
+ *
+ * @returns {Function}
+ */
+export function configureInitialDevices() {
+    return (dispatch, getState) => new Promise(resolve => {
+        const deviceLabels = getDevicesFromURL(getState());
+
+        if (deviceLabels) {
+            dispatch(getAvailableDevices()).then(() => {
+                const state = getState();
+
+                if (!areDeviceLabelsInitialized(state)) {
+                    // The labels are not available if the A/V permissions are
+                    // not yet granted.
+
+                    Object.keys(deviceLabels).forEach(key => {
+                        dispatch(addPendingDeviceRequest({
+                            type: 'devices',
+                            name: 'setDevice',
+                            device: {
+                                kind: key.toLowerCase(),
+                                label: deviceLabels[key]
+                            },
+                            // eslint-disable-next-line no-empty-function
+                            responseCallback() {}
+                        }));
+                    });
+                    resolve();
+
+                    return;
+                }
+                const newSettings = {};
+                const devicesKeysToSettingsKeys = {
+                    audioInput: 'micDeviceId',
+                    audioOutput: 'audioOutputDeviceId',
+                    videoInput: 'cameraDeviceId'
+                };
+
+                Object.keys(deviceLabels).forEach(key => {
+                    const label = deviceLabels[key];
+                    const deviceId = getDeviceIdByLabel(state, label);
+
+                    if (deviceId) {
+                        newSettings[devicesKeysToSettingsKeys[key]] = deviceId;
+                    }
+                });
+
+                dispatch(updateSettings(newSettings));
+                resolve();
+            });
+
+        } else {
+            resolve();
+        }
+    });
+}
 
 /**
  * Queries for connected A/V input and output devices and updates the redux
@@ -27,6 +110,20 @@ export function getAvailableDevices() {
             resolve([]);
         }
     });
+}
+
+
+/**
+ * Remove all pending device requests.
+ *
+ * @returns {{
+ *      type: REMOVE_PENDING_DEVICE_REQUESTS
+ * }}
+ */
+export function removePendingDeviceRequests() {
+    return {
+        type: REMOVE_PENDING_DEVICE_REQUESTS
+    };
 }
 
 /**
@@ -77,3 +174,4 @@ export function updateDeviceList(devices) {
         devices
     };
 }
+
