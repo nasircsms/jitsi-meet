@@ -10,7 +10,7 @@ import {
 } from '../../../base/dialog';
 import { connect } from '../../../base/redux';
 import { StyleType } from '../../../base/styles';
-import { InviteButton } from '../../../invite';
+import { InfoDialogButton, InviteButton } from '../../../invite';
 import { AudioRouteButton } from '../../../mobile/audio-mode';
 import { LiveStreamButton, RecordButton } from '../../../recording';
 import { RoomLockButton } from '../../../room-lock';
@@ -18,6 +18,7 @@ import { ClosedCaptionButton } from '../../../subtitles';
 import { TileViewButton } from '../../../video-layout';
 
 import AudioOnlyButton from './AudioOnlyButton';
+import RaiseHandButton from './RaiseHandButton';
 import ToggleCameraButton from './ToggleCameraButton';
 
 declare var __DEV__;
@@ -95,6 +96,8 @@ class OverflowMenu extends Component<Props> {
                 <LiveStreamButton { ...buttonProps } />
                 <TileViewButton { ...buttonProps } />
                 <InviteButton { ...buttonProps } />
+                <InfoDialogButton { ...buttonProps } />
+                <RaiseHandButton { ...buttonProps } />
             </BottomSheet>
         );
     }

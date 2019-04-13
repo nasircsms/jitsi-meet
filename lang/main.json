@@ -57,6 +57,9 @@
         },
         "title": "Chat"
     },
+    "connectingOverlay": {
+        "joiningRoom": "Connecting you to your meeting..."
+    },
     "connection": {
         "ATTACHED": "Attached",
         "AUTHENTICATING": "Authenticating",
@@ -469,7 +472,7 @@
         "moderator": "Moderator rights granted!",
         "muted": "You have started the conversation muted.",
         "mutedTitle": "You're muted!",
-        "raisedHand": "Would like to speak.",
+        "raisedHand": "__name__ would like to speak.",
         "somebody": "Somebody",
         "suboptimalExperienceDescription": "Eer... we are afraid your experience with __appName__ isn't going to be that great here. We are looking for ways to improve this but, until then, please try using one of the <a href='static/recommendedBrowsers.html' target='_blank'>fully supported browsers</a>.",
         "suboptimalExperienceTitle": "Browser Warning"
@@ -560,6 +563,7 @@
         "alertOk": "OK",
         "alertTitle": "Warning",
         "alertURLText": "The entered server URL is invalid",
+        "buildInfoSection": "Build Information",
         "conferenceSection": "Conference",
         "displayName": "Display name",
         "email": "Email",
@@ -567,7 +571,8 @@
         "profileSection": "Profile",
         "serverURL": "Server URL",
         "startWithAudioMuted": "Start with audio muted",
-        "startWithVideoMuted": "Start with video muted"
+        "startWithVideoMuted": "Start with video muted",
+        "version": "Version"
     },
     "share": {
         "dialInfoText": "\n\n=====\n\nJust want to dial in on your phone?\n\n__defaultDialInNumber__Click this link to see the dial in phone numbers for this meeting\n__dialInfoPageUrl__",

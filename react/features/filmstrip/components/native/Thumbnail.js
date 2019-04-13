@@ -1,6 +1,7 @@
 // @flow
 
 import React, { Component } from 'react';
+import { View } from 'react-native';
 import type { Dispatch } from 'redux';
 
 import { ColorSchemeRegistry } from '../../../base/color-scheme';
@@ -22,8 +23,8 @@ import { RemoteVideoMenu } from '../../../remote-video-menu';
 import AudioMutedIndicator from './AudioMutedIndicator';
 import DominantSpeakerIndicator from './DominantSpeakerIndicator';
 import ModeratorIndicator from './ModeratorIndicator';
-import { AVATAR_SIZE } from '../styles';
-import styles from './styles';
+import RaisedHandIndicator from './RaisedHandIndicator';
+import styles, { AVATAR_SIZE } from './styles';
 import VideoMutedIndicator from './VideoMutedIndicator';
 
 /**
@@ -163,10 +164,15 @@ class Thumbnail extends Component<Props> {
                     zOrder = { 1 } />
 
                 { participant.role === PARTICIPANT_ROLE.MODERATOR
-                    && <ModeratorIndicator /> }
+                    && <View style = { styles.moderatorIndicatorContainer }>
+                        <ModeratorIndicator />
+                    </View> }
 
-                { participant.dominantSpeaker
-                    && <DominantSpeakerIndicator /> }
+                <View style = { styles.thumbnailTopIndicatorContainer }>
+                    <RaisedHandIndicator participantId = { participant.id } />
+                    { participant.dominantSpeaker
+                        && <DominantSpeakerIndicator /> }
+                </View>
 
                 <Container style = { styles.thumbnailIndicatorContainer }>
                     { audioMuted
