@@ -18,6 +18,7 @@ var interfaceConfig = {
     DEFAULT_LOCAL_DISPLAY_NAME: 'me',
     SHOW_JITSI_WATERMARK: false,
     JITSI_WATERMARK_LINK: 'https://jitsi.org',
+
     // if watermark is disabled by default, it can be shown only for guests
     SHOW_WATERMARK_FOR_GUESTS: false,
     SHOW_BRAND_WATERMARK: false,
@@ -29,6 +30,7 @@ var interfaceConfig = {
     APP_NAME: 'Rocket.Chat',
     NATIVE_APP_NAME: 'Rocket.Chat',
     PROVIDER_NAME: 'Rocket.Chat',
+
     // Allow i18n to detect the system language
     LANG_DETECTION: true,
     INVITATION_POWERED_BY: false,

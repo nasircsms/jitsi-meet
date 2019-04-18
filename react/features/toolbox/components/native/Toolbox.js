@@ -7,7 +7,6 @@ import { Container } from '../../../base/react';
 import { ColorSchemeRegistry } from '../../../base/color-scheme';
 import { connect } from '../../../base/redux';
 import { StyleType } from '../../../base/styles';
-import { ChatButton } from '../../../chat';
 
 import { isToolboxVisible } from '../../functions';
 import { HANGUP_BUTTON_SIZE } from '../../constants';
@@ -18,6 +17,8 @@ import HangupButton from '../HangupButton';
 import OverflowMenuButton from './OverflowMenuButton';
 import styles from './styles';
 import VideoMuteButton from '../VideoMuteButton';
+import ToggleCameraButton from '../ToggleCameraButton';
+
 
 /**
  * The number of buttons other than {@link HangupButton} to render in
@@ -239,11 +240,9 @@ class Toolbox extends Component<Props, State> {
             <View
                 pointerEvents = 'box-none'
                 style = { styles.toolbar }>
-                <ChatButton
+                <ToggleCameraButton
                     styles = { buttonStyles }
-                    toggledStyles = {
-                        this._getChatButtonToggledStyle(toggledButtonStyles)
-                    } />
+                    toggledStyles = { toggledButtonStyles } />
                 <AudioMuteButton
                     styles = { buttonStyles }
                     toggledStyles = { toggledButtonStyles } />
